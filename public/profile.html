@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Profil Kasir</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&family=Newsreader:opsz,wght@6..72,400;500&display=swap">
+<link rel="stylesheet" href="admin.css">
+<link rel="stylesheet" href="app.css">
+<style>
+.poster{border:1px solid var(--line);border-radius:12px;padding:32px 20px;display:grid;justify-items:center;gap:14px;text-align:center;background:#fff;color:#111}
+.poster h2{font-size:28px}
+.poster p{margin:0;color:#444;line-height:1.5}
+.poster #qr{padding:8px;background:#fff}
+.poster .url{font-size:12px;color:#777;overflow-wrap:anywhere;font-family:var(--mono)}
+#logo{width:72px;height:72px;border-radius:14px}
+@media print{
+  @page{margin:16mm}
+  body{padding:0;background:#fff}
+  .wrap>*:not(#posterCard){display:none!important}
+  #posterCard{border:0;padding:0;background:none}
+  #posterCard>*:not(.poster){display:none!important}
+  .poster{border:0;padding:0}
+  .poster h2{font-size:40px}
+  .poster p{font-size:18px}
+}
+</style>
+</head>
+<body>
+<main class="wrap" id="app" hidden>
+  <div>
+    <h1>Profil</h1>
+    <p class="sub">Akun kasir dan QR cetak untuk pelanggan.</p>
+  </div>
+
+  <section class="card">
+    <span class="lbl">Akun</span>
+    <span class="email" id="email">…</span>
+    <button class="ghost" id="logout">Keluar</button>
+  </section>
+
+  <section class="card" id="posterCard">
+    <span class="lbl">QR untuk pelanggan</span>
+    <div class="poster">
+      <img id="logo" alt="" hidden>
+      <h2 class="brand-name">Kartu Stempel</h2>
+      <div id="qr"></div>
+      <p><b>Scan untuk cek stempelmu</b><br>Beli 10x, gratis 1</p>
+      <p class="url" id="urlText"></p>
+    </div>
+    <label class="lbl" for="url">Alamat halaman pelanggan</label>
+    <input id="url" type="url" inputmode="url" spellcheck="false">
+    <p class="note warn" id="warn" hidden>Alamat ini hanya jalan di jaringan/komputer ini. Sebelum dicetak, ganti dengan alamat publik setelah website di-deploy.</p>
+    <p class="note">QR mengarah ke halaman pelanggan. Pelanggan lalu mengetik nomor HP untuk melihat kartunya.</p>
+    <button id="print">Cetak QR</button>
+  </section>
+</main>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
+<script src="config.js"></script>
+<script src="nav.js"></script>
+<script>
+const $=id=>document.getElementById(id);
+let KEY='',def='';
+
+function draw(){
+  const v=$('url').value.trim()||def;
+  $('urlText').textContent=v;
+  const q=$('qr');q.innerHTML='';
+  try{new QRCode(q,{text:v,width:220,height:220,correctLevel:QRCode.CorrectLevel.M})}catch(e){}
+  $('warn').hidden=!/^https?:\/\/(localhost|127\.|192\.168\.|10\.|0\.0\.0\.0)/i.test(v);
+}
+$('url').addEventListener('input',()=>{
+  try{localStorage.setItem(KEY,$('url').value.trim())}catch(e){}
+  draw();
+});
+$('print').onclick=()=>window.print();
+$('logout').onclick=bye;
+(async()=>{
+  const s=await guard();if(!s)return;
+  const c=await loadClient();if(!c)return;
+  applyBrand(c,'Profil');
+  KEY='customer-url-'+c.slug;
+  def=new URL('index.html?c='+encodeURIComponent(c.slug),location.href).href;
+  let url=def;
+  try{url=localStorage.getItem(KEY)||def}catch(e){}
+  $('url').value=url;
+  $('email').textContent=s.user.email||'';
+  $('app').hidden=false;draw();
+})();
+</script>
+</body>
+</html>

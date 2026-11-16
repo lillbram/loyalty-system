@@ -1,0 +1,88 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Klien · Admin</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&family=Newsreader:opsz,wght@6..72,400;500&display=swap">
+<link rel="stylesheet" href="admin.css">
+</head>
+<body>
+<main class="page" id="app" hidden>
+  <header class="bar reveal">
+    <div>
+      <span class="eyebrow">Platform admin</span>
+      <h1>Klien</h1>
+      <p class="lead">Satu program loyalty per klien. Tiap klien punya link pelanggan, link login kasir, dan akun kasir sendiri.</p>
+    </div>
+    <div class="actions">
+      <button class="btn ghost" id="logout"></button>
+      <a class="btn" href="admin-client.html" id="new"></a>
+    </div>
+  </header>
+
+  <p class="msg" id="msg" hidden></p>
+  <p class="note" id="envNote" style="margin:-24px 0 24px"></p>
+
+  <section class="stats" id="stats"></section>
+
+  <section class="panel flush reveal" style="--i:4">
+    <div class="thead">
+      <span>Klien</span><span>ID pelanggan</span>
+      <span class="num">Kasir</span><span class="num">Pelanggan</span><span>Status</span><span></span>
+    </div>
+    <div id="list"></div>
+  </section>
+</main>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
+<script src="config.js"></script>
+<script src="admin.js"></script>
+<script>
+let clients=[];
+$('logout').innerHTML=icon('out')+'Keluar';
+$('new').innerHTML=icon('plus')+'Klien baru';
+$('logout').onclick=bye;
+
+const tile=c=>c.logo?`<img class="thumb" src="${esc(c.logo)}" alt="">`
+  :`<span class="thumb" style="background:${esc(c.color)}">${esc((c.name||'?').trim().charAt(0).toUpperCase())}</span>`;
+
+function render(){
+  const sum=k=>clients.reduce((a,c)=>a+c[k],0);
+  const tiles=[[clients.length,'Klien'],[clients.filter(c=>c.active).length,'Aktif'],[sum('cashiers'),'Akun kasir'],[sum('customers'),'Pelanggan']];
+  $('stats').innerHTML=tiles.map(([n,l],i)=>`<div class="panel stat reveal" style="--i:${i}"><b>${n}</b><span>${l}</span></div>`).join('');
+  $('list').innerHTML=clients.length?clients.map((c,i)=>`
+    <div class="row reveal" style="--i:${i+5}">
+      <div class="c-client">${tile(c)}<div><b>${esc(c.name)}</b><span>/${esc(c.slug)}</span></div></div>
+      <div>${esc(c.key_label)}</div>
+      <div class="num" data-l="Kasir">${c.cashiers}</div>
+      <div class="num" data-l="Pelanggan">${c.customers}</div>
+      <div><span class="tag ${c.active?'green':'yellow'}">${c.active?'Aktif':'Nonaktif'}</span></div>
+      <div class="c-act">
+        <button class="btn ghost sm" data-copy="cust" data-id="${c.id}">${icon('copy')}Link pelanggan</button>
+        <button class="btn ghost sm" data-copy="login" data-id="${c.id}">${icon('copy')}Link login</button>
+        <a class="btn sm" href="admin-client.html?id=${c.id}">Kelola${icon('arrow')}</a>
+      </div>
+    </div>`).join(''):'<p class="empty">Belum ada klien. Buat klien pertama dengan tombol Klien baru.</p>';
+  reveal();
+}
+
+$('list').addEventListener('click',e=>{
+  const b=e.target.closest('[data-copy]');if(!b)return;
+  const c=clients.find(x=>x.id===b.dataset.id);if(!c)return;
+  b.dataset.copy==='cust'?copy(link(c.slug),'Link pelanggan'):copy(loginLink(c.slug),'Link login kasir');
+});
+
+(async()=>{
+  if(!await adminGuard())return;
+  $('app').hidden=false;
+  const r=await rpc('admin_list_clients');
+  // Only show clients of the current environment (sandbox host = dummy clients, production host = real ones).
+  const sb=APP_ENV!=='production';
+  clients=r.err?[]:r.data.filter(c=>c.is_sandbox===sb);
+  $('envNote').textContent=sb?'Environment sandbox: hanya klien dummy yang tampil. Klien asli ada di alamat produksi.':'Environment produksi: hanya klien asli yang tampil.';
+  render();
+})();
+</script>
+</body>
+</html>

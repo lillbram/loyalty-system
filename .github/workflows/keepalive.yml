@@ -1,0 +1,24 @@
+# Supabase free projects pause after about 7 days without activity.
+# This pings the database every 3 days so a quiet week does not take the app offline.
+# The URL and publishable key are public values (same as in public/config.js).
+name: Supabase keepalive
+
+on:
+  schedule:
+    - cron: '17 3 */3 * *'
+  workflow_dispatch:
+
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Call a public function
+        run: |
+          code=$(curl -s -o /dev/null -w "%{http_code}" -X POST \
+            "https://jptdttjievlgbvwijmma.supabase.co/rest/v1/rpc/get_client" \
+            -H "apikey: sb_publishable_NUBkLODH6Jig4cGhJNhwiw_F7wTFzs6" \
+            -H "Content-Type: application/json" \
+            -d '{"s":"keepalive"}')
+          # 400 (client_not_found) is expected and still runs a query. 5xx or 000 means the project is down.
+          echo "HTTP $code"
+          case "$code" in 5*|000) exit 1;; esac

@@ -1,0 +1,54 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Masuk Admin</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&family=Newsreader:opsz,wght@6..72,400;500&display=swap">
+<link rel="stylesheet" href="admin.css">
+</head>
+<body class="center">
+<main class="page narrow">
+  <header style="margin-bottom:32px" class="reveal">
+    <span class="eyebrow">Platform admin</span>
+    <h1>Masuk</h1>
+    <p class="lead">Khusus pengelola platform. Kasir masuk lewat link login klien masing-masing.</p>
+  </header>
+  <form class="panel stack reveal" id="login" style="--i:1">
+    <label class="f"><span class="lbl">Email</span><input id="em" type="email" autocomplete="username" required></label>
+    <label class="f"><span class="lbl">Password</span><input id="pw" type="password" autocomplete="current-password" required></label>
+    <button class="btn" type="submit" id="go" style="padding:14px 16px">Masuk</button>
+    <p class="msg err" id="msg" hidden style="margin:0"></p>
+  </form>
+</main>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
+<script src="config.js"></script>
+<script src="admin.js"></script>
+<script>
+const fail=t=>{$('msg').textContent=t;$('msg').hidden=false;$('go').disabled=false};
+
+// '' after redirecting on success, else an error message.
+async function route(){
+  const {data:role}=await SB.rpc('my_role');
+  if(role==='admin'){location.replace('admin.html');return ''}
+  return 'Akun ini bukan admin.';
+}
+
+reveal();
+(async()=>{
+  if(!window.SB_READY)return fail('Backend belum diatur. Isi config.js.');
+  const {data:{session}}=await SB.auth.getSession();
+  if(session){const err=await route();if(err){await SB.auth.signOut();fail(err)}}
+})();
+
+$('login').addEventListener('submit',async e=>{
+  e.preventDefault();$('msg').hidden=true;$('go').disabled=true;
+  const {error}=await SB.auth.signInWithPassword({email:$('em').value.trim(),password:$('pw').value});
+  if(error)return fail('Email atau password salah.');
+  const err=await route();
+  if(err){await SB.auth.signOut();fail(err)}
+});
+</script>
+</body>
+</html>

@@ -1,0 +1,18 @@
+/*
+  X-Content-Type-Options: nosniff
+  Referrer-Policy: strict-origin-when-cross-origin
+
+/admin*
+  X-Robots-Tag: noindex, nofollow
+
+/login.html
+  X-Robots-Tag: noindex, nofollow
+
+/kasir.html
+  X-Robots-Tag: noindex, nofollow
+
+/log.html
+  X-Robots-Tag: noindex, nofollow
+
+/profile.html
+  X-Robots-Tag: noindex, nofollow

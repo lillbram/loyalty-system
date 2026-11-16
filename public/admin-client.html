@@ -1,0 +1,279 @@
+<!doctype html>
+<html lang="id">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<title>Klien · Admin</title>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&family=Newsreader:opsz,wght@6..72,400;500&display=swap">
+<link rel="stylesheet" href="admin.css">
+</head>
+<body>
+<main class="page" id="app" hidden>
+  <a class="back" href="admin.html" id="back"></a>
+
+  <header class="bar reveal">
+    <div>
+      <span class="eyebrow" id="eyebrow">Klien baru</span>
+      <h1 id="title">Klien baru</h1>
+    </div>
+    <div class="actions" id="links" hidden>
+      <button class="btn ghost" id="cpCust" type="button"></button>
+      <button class="btn ghost" id="cpLogin" type="button"></button>
+    </div>
+  </header>
+
+  <p class="msg" id="msg" hidden></p>
+
+  <div class="cols">
+    <form class="panel reveal" id="editor" style="--i:1">
+      <div class="sec">
+        <h3>Identitas</h3>
+        <div class="two">
+          <label class="f"><span class="lbl">Nama program</span>
+            <input id="name" maxlength="60" required placeholder="Contoh: Kopi Senja"></label>
+          <label class="f"><span class="lbl">Kode link</span>
+            <input id="slug" maxlength="39" required placeholder="kopi-senja" spellcheck="false" autocapitalize="off"></label>
+        </div>
+        <p class="note" id="slugnote"></p>
+      </div>
+
+      <div class="sec">
+        <h3>Tampilan</h3>
+        <div class="two">
+          <label class="f"><span class="lbl">Warna <span class="hex" id="hex"></span></span>
+            <input id="color" type="color" value="#5d8a3a"></label>
+          <div class="f"><span class="lbl">Logo</span>
+            <div class="logo-row">
+              <img id="logoImg" class="thumb" alt="" hidden>
+              <button type="button" class="btn danger sm" id="logoDel" hidden></button>
+            </div>
+          </div>
+        </div>
+        <input id="logoFile" type="file" accept="image/*" aria-label="Pilih logo">
+        <p class="note">Gambar otomatis dikecilkan ke 256 px. Persegi paling rapi.</p>
+      </div>
+
+      <div class="sec">
+        <h3>ID pelanggan</h3>
+        <div class="two">
+          <label class="f"><span class="lbl">Jenis ID</span>
+            <select id="ktype">
+              <option value="phone">Nomor HP</option>
+              <option value="tiktok">Username TikTok</option>
+              <option value="instagram">Username Instagram</option>
+              <option value="email">Email</option>
+              <option value="custom">Lainnya (teks bebas)</option>
+            </select></label>
+          <label class="f"><span class="lbl">Label di layar</span>
+            <input id="klabel" maxlength="40" placeholder="Nomor HP"></label>
+        </div>
+        <p class="note" id="ktnote"></p>
+      </div>
+
+      <div class="sec">
+        <label class="check"><input id="active" type="checkbox" checked>
+          <span><b style="color:var(--fg);font-weight:500">Aktif</b><br><span class="note">Nonaktif berarti pelanggan dan kasir klien ini tidak bisa mengakses.</span></span></label>
+      </div>
+
+      <div class="actions" style="margin-top:32px">
+        <button class="btn" type="submit" id="save">Simpan</button>
+        <a class="btn ghost" href="admin.html">Batal</a>
+      </div>
+    </form>
+
+    <aside class="side">
+      <section class="panel tight reveal sticky" style="--i:2">
+        <span class="lbl" style="display:block;margin-bottom:14px">Pratinjau halaman pelanggan</span>
+        <div class="preview">
+          <div class="brand"><span class="thumb" id="pvThumb"></span><span class="pname" id="pvName"></span></div>
+          <span class="note" id="pvLabel"></span>
+          <span class="btn" id="pvBtn">Cek</span>
+        </div>
+      </section>
+
+      <section class="panel reveal" id="cashHint" style="--i:3">
+        <h3>Akun kasir</h3>
+        <p class="note" style="margin-top:12px">Simpan klien dulu, lalu tambahkan akun kasir di sini.</p>
+      </section>
+
+      <section class="panel reveal" id="cashCard" hidden style="--i:3">
+        <h3>Akun kasir</h3>
+        <p class="note" style="margin:12px 0 16px">Satu akun kasir hanya untuk satu klien. Link login:</p>
+        <div class="urlbox" id="loginUrl"></div>
+        <div id="cashList" style="margin:16px 0 8px"></div>
+        <form id="cashForm" class="stack" style="gap:14px;margin-top:16px;padding-top:20px;border-top:1px solid var(--line)">
+          <span class="lbl">Buat akun baru</span>
+          <label class="f"><span class="note">Email</span><input id="cemail" type="email" required autocomplete="off"></label>
+          <label class="f"><span class="note">Password (min. 8 karakter)</span><input id="cpass" type="text" minlength="8" required autocomplete="off"></label>
+          <button class="btn" type="submit" id="cadd">Buat akun</button>
+          <p class="note">Catat password lalu berikan ke kasir. Password tidak bisa dilihat lagi.</p>
+        </form>
+      </section>
+    </aside>
+  </div>
+</main>
+
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
+<script src="config.js"></script>
+<script src="admin.js"></script>
+<script>
+const params=new URLSearchParams(location.search);
+const cid=params.get('id');
+let cur=null,logo='',logoSaved='',pending=null,slugTouched=false;
+$('back').innerHTML=icon('back')+'Semua klien';
+$('cpCust').innerHTML=icon('copy')+'Link pelanggan';
+$('cpLogin').innerHTML=icon('copy')+'Link login kasir';
+$('logoDel').innerHTML=icon('x')+'Hapus logo';
+
+const slugify=s=>s.toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g,'').replace(/[^a-z0-9]+/g,'-').replace(/^-+|-+$/g,'').slice(0,38);
+
+function fill(c){
+  cur=c;slugTouched=!!c;
+  $('eyebrow').textContent=(c?'Kelola klien':'Klien baru')+((c?c.is_sandbox:APP_ENV!=='production')?' · sandbox':'');
+  $('title').textContent=c?c.name:'Klien baru';
+  document.title=(c?c.name:'Klien baru')+' · Admin';
+  $('name').value=c?c.name:'';
+  $('slug').value=c?c.slug:'';$('slug').disabled=!!c;
+  $('slugnote').textContent=c?'Kode link tidak bisa diubah karena dipakai di QR cetak.':'Dipakai di link pelanggan dan link login. Tidak bisa diubah setelah dibuat.';
+  $('color').value=c?c.color:'#5d8a3a';
+  $('ktype').value=c?c.key_type:'phone';
+  $('klabel').value=c?c.key_label:KEYS.phone.label;
+  $('active').checked=c?c.active:true;
+  logo=logoSaved=c&&c.logo?c.logo:'';pending=null;$('logoFile').value='';
+  $('save').textContent=c?'Simpan perubahan':'Buat klien';
+  $('links').hidden=!c;
+  $('cashHint').hidden=!!c;$('cashCard').hidden=!c;
+  if(c){
+    $('loginUrl').textContent=loginLink(c.slug);
+    $('cpCust').onclick=()=>copy(link(c.slug),'Link pelanggan');
+    $('cpLogin').onclick=()=>copy(loginLink(c.slug),'Link login kasir');
+    loadCashiers();
+  }
+  keyNote();pv();
+}
+
+function keyNote(){
+  const t=$('ktype').value;
+  $('ktnote').textContent=cur&&cur.customers?'Jenis ID terkunci karena klien sudah punya '+cur.customers+' pelanggan.':
+    {phone:'Nomor diubah ke format 08xxx. Awalan 62 otomatis menjadi 0.',tiktok:'Tanpa @. Huruf kecil, angka, titik, garis bawah.',instagram:'Tanpa @. Huruf kecil, angka, titik, garis bawah.',email:'Format email biasa.',custom:'Teks bebas 2–50 karakter.'}[t];
+  $('ktype').disabled=!!(cur&&cur.customers);
+}
+
+function lum(hex){const h=hex.slice(1),[r,g,b]=[0,2,4].map(i=>parseInt(h.substr(i,2),16)/255).map(v=>v<=.03928?v/12.92:Math.pow((v+.055)/1.055,2.4));return .2126*r+.7152*g+.0722*b}
+function pv(){
+  const color=$('color').value,name=$('name').value||'Nama program';
+  $('hex').textContent=color.toUpperCase();
+  $('pvName').textContent=name;
+  $('pvLabel').textContent='Masukkan '+($('klabel').value||KEYS[$('ktype').value].label)+' untuk cek stempel.';
+  $('pvBtn').style.background=color;$('pvBtn').style.color=lum(color)>.4?'#111':'#fff';
+  const t=$('pvThumb');
+  if(logo){t.style.background='#fff';t.innerHTML=`<img class="thumb" style="border:0;width:100%;height:100%" src="${esc(logo)}" alt="">`}
+  else{t.style.background=color;t.textContent=name.trim().charAt(0).toUpperCase()}
+  $('logoImg').hidden=!logo;if(logo)$('logoImg').src=logo;
+  $('logoDel').hidden=!logo;
+}
+$('name').addEventListener('input',()=>{if(!slugTouched)$('slug').value=slugify($('name').value);pv()});
+$('slug').addEventListener('input',()=>{slugTouched=true});
+$('color').addEventListener('input',pv);
+$('klabel').addEventListener('input',pv);
+$('ktype').addEventListener('change',()=>{
+  const l=$('klabel').value.trim();
+  if(!l||Object.values(KEYS).some(k=>k.label===l))$('klabel').value=KEYS[$('ktype').value].label;
+  keyNote();pv();
+});
+
+// Shrink to at most 256px and encode small (limit 256 KB, usually 5-30 KB). Uploaded to Storage on save.
+async function fileToBlob(file){
+  const img=await new Promise((res,rej)=>{const i=new Image();i.onload=()=>res(i);i.onerror=()=>rej(new Error('bad'));i.src=URL.createObjectURL(file)});
+  URL.revokeObjectURL(img.src);
+  for(const S of [256,160,96]){
+    const k=Math.min(1,S/Math.max(img.width||S,img.height||S));
+    const c=document.createElement('canvas');
+    c.width=Math.max(1,Math.round((img.width||S)*k));c.height=Math.max(1,Math.round((img.height||S)*k));
+    c.getContext('2d').drawImage(img,0,0,c.width,c.height);
+    const b=await new Promise(r=>c.toBlob(r,'image/webp',.85)); // Safari falls back to PNG
+    if(b&&b.size<250000)return b;
+  }
+  throw new Error('big');
+}
+$('logoFile').addEventListener('change',async e=>{
+  const f=e.target.files[0];if(!f)return;
+  try{pending=await fileToBlob(f);if(logo.startsWith('blob:'))URL.revokeObjectURL(logo);logo=URL.createObjectURL(pending);pv()}
+  catch(_){toast('Gambar tidak bisa dipakai. Coba file lain.')}
+});
+$('logoDel').onclick=()=>{pending=null;logo='';logoSaved='';$('logoFile').value='';pv()};
+async function uploadLogo(slug){
+  const ext=pending.type==='image/webp'?'webp':pending.type==='image/jpeg'?'jpg':'png';
+  const path=slug+'-'+Date.now()+'.'+ext;
+  const {error}=await SB.storage.from('logos').upload(path,pending,{contentType:pending.type,cacheControl:'31536000'});
+  if(error)return null;
+  return SB.storage.from('logos').getPublicUrl(path).data.publicUrl;
+}
+
+$('editor').addEventListener('submit',async e=>{
+  e.preventDefault();toast('');
+  const slug=$('slug').value.trim().toLowerCase(),name=$('name').value.trim();
+  if(!name)return toast('Nama wajib diisi.');
+  if(!/^[a-z0-9][a-z0-9-]{1,38}$/.test(slug))return toast('Kode link 2–39 karakter: huruf kecil, angka, tanda minus.');
+  $('save').disabled=true;
+  let logoFinal=logoSaved||null;
+  if(pending){
+    logoFinal=await uploadLogo(slug);
+    if(!logoFinal){$('save').disabled=false;return toast('Logo gagal diunggah. Pastikan schema.sql terbaru sudah dijalankan.')}
+  }
+  const r=await rpc('admin_save_client',{
+    p_id:cur?cur.id:null,p_slug:slug,p_name:name,p_logo:logoFinal,p_color:$('color').value,
+    p_key_type:$('ktype').value,p_key_label:$('klabel').value.trim()||null,p_active:$('active').checked,
+    p_sandbox:APP_ENV!=='production'});
+  $('save').disabled=false;
+  if(r.err)return;
+  if(!cur){location.replace('admin-client.html?id='+encodeURIComponent(r.data.id)+'&created=1');return}
+  await refresh();toast('Perubahan disimpan.',true);
+});
+
+async function refresh(){
+  const r=await rpc('admin_list_clients');if(r.err)return;
+  const c=r.data.find(x=>x.id===cid);if(c)fill(c);
+}
+
+// cashiers
+async function loadCashiers(){
+  const r=await rpc('admin_list_cashiers',{cid:cur.id});if(r.err)return;
+  $('cashList').innerHTML=r.data.length?r.data.map(k=>`
+    <div class="item"><div><b>${esc(k.email)}</b><span>Dibuat ${new Date(k.created_at).toLocaleDateString('id-ID')}</span></div>
+    <button class="btn danger sm" data-uid="${k.user_id}" data-email="${esc(k.email)}">Cabut akses</button></div>`).join('')
+    :'<p class="note">Belum ada kasir untuk klien ini.</p>';
+}
+$('cashList').addEventListener('click',async e=>{
+  const b=e.target.closest('button');if(!b)return;
+  if(!confirm('Cabut akses kasir '+b.dataset.email+'? Akun login tidak dihapus, tapi tidak bisa memberi stempel lagi.'))return;
+  const r=await rpc('admin_remove_cashier',{uid:b.dataset.uid});if(r.err)return;
+  toast('Akses kasir dicabut.',true);loadCashiers();refresh();
+});
+$('cashForm').addEventListener('submit',async e=>{
+  e.preventDefault();toast('');
+  const email=$('cemail').value.trim(),password=$('cpass').value;
+  if(password.length<8)return toast('Password minimal 8 karakter.');
+  $('cadd').disabled=true;
+  const r=await rpc('admin_create_cashier',{p_client:cur.id,p_email:email,p_password:password});
+  $('cadd').disabled=false;
+  if(r.err)return;
+  $('cemail').value='';$('cpass').value='';
+  toast('Akun kasir dibuat: '+email,true);loadCashiers();refresh();
+});
+
+(async()=>{
+  if(!await adminGuard())return;
+  $('app').hidden=false;
+  if(cid){
+    const r=await rpc('admin_list_clients');
+    const c=r.err?null:r.data.find(x=>x.id===cid);
+    if(!c||envMismatch(c))return location.replace('admin.html');
+    fill(c);
+    if(params.get('created')){toast('Klien dibuat. Tambahkan akun kasir di kanan.',true);history.replaceState(null,'','admin-client.html?id='+encodeURIComponent(cid))}
+  }else fill(null);
+  reveal();
+})();
+</script>
+</body>
+</html>
