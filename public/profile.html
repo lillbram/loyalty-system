@@ -77,7 +77,7 @@ $('url').addEventListener('input',()=>{
   draw();
 });
 $('print').onclick=()=>window.print();
-$('logout').onclick=bye;
+$('logout').onclick=confirmBye;
 (async()=>{
   const s=await guard();if(!s)return;
   const c=await loadClient();if(!c)return;

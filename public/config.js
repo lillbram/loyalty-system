@@ -89,3 +89,26 @@ window.sbError = (e) => {
   for (const k in map) if (m.includes(k)) return map[k];
   return "Gagal terhubung ke server. Coba lagi.";
 };
+
+// Logout confirmation dialog, shared by cashier and admin pages. Calls window.bye() on confirm.
+window.confirmBye = function () {
+  if (document.getElementById("byeDlg")) return;
+  const d = document.createElement("div");
+  d.id = "byeDlg";
+  d.className = "dlg-back";
+  d.innerHTML =
+    '<div class="dlg" role="alertdialog" aria-modal="true" aria-labelledby="byeT" aria-describedby="byeD">' +
+    '<h2 id="byeT">Keluar dari akun?</h2>' +
+    '<p id="byeD">Kamu harus masuk lagi untuk memakai akun ini.</p>' +
+    '<div class="dlg-act"><button type="button" class="dlg-no">Batal</button>' +
+    '<button type="button" class="dlg-yes">Keluar</button></div></div>';
+  document.body.appendChild(d);
+  const prev = document.activeElement;
+  const close = () => { d.remove(); document.removeEventListener("keydown", key); if (prev && prev.focus) prev.focus(); };
+  const key = (e) => { if (e.key === "Escape") close(); };
+  document.addEventListener("keydown", key);
+  d.addEventListener("click", (e) => { if (e.target === d) close(); });
+  d.querySelector(".dlg-no").onclick = close;
+  d.querySelector(".dlg-yes").onclick = () => { d.querySelector(".dlg-yes").disabled = true; window.bye(); };
+  d.querySelector(".dlg-no").focus();
+};

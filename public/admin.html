@@ -16,7 +16,6 @@
       <p class="lead">Satu program loyalty per klien. Tiap klien punya link pelanggan, link login kasir, dan akun kasir sendiri.</p>
     </div>
     <div class="actions">
-      <button class="btn ghost" id="logout"></button>
       <a class="btn" href="admin-client.html" id="new"></a>
     </div>
   </header>
@@ -33,6 +32,8 @@
     </div>
     <div id="list"></div>
   </section>
+
+  <div class="logout-row"><button class="btn red" id="logout"></button></div>
 </main>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
@@ -42,7 +43,7 @@
 let clients=[];
 $('logout').innerHTML=icon('out')+'Keluar';
 $('new').innerHTML=icon('plus')+'Klien baru';
-$('logout').onclick=bye;
+$('logout').onclick=confirmBye;
 
 const tile=c=>c.logo?`<img class="thumb" src="${esc(c.logo)}" alt="">`
   :`<span class="thumb" style="background:${esc(c.color)}">${esc((c.name||'?').trim().charAt(0).toUpperCase())}</span>`;
