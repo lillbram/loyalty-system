@@ -32,7 +32,7 @@ if (window.APP_ENV !== "production") {
 }
 // Admin and cashier sessions are stored under different keys, so logging in as one
 // never signs out the other in the same browser.
-window.IS_ADMIN_AREA = /\/admin(-[a-z]+)?\.html$/.test(location.pathname);
+window.IS_ADMIN_AREA = /\/admin(-[a-z]+)?(\.html)?\/?$/.test(location.pathname);
 window.SB = window.supabase.createClient(SUPABASE_URL, SUPABASE_ANON_KEY, {
   auth: { storageKey: window.IS_ADMIN_AREA ? "loyalty-admin-auth" : "loyalty-cashier-auth" },
 });

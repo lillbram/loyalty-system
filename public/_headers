@@ -5,14 +5,14 @@
 /admin*
   X-Robots-Tag: noindex, nofollow
 
-/login.html
+/login*
   X-Robots-Tag: noindex, nofollow
 
-/kasir.html
+/kasir*
   X-Robots-Tag: noindex, nofollow
 
-/log.html
+/log*
   X-Robots-Tag: noindex, nofollow
 
-/profile.html
+/profile*
   X-Robots-Tag: noindex, nofollow

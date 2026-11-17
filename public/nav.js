@@ -11,7 +11,8 @@
     ['log.html', 'Log', 'log'],
     ['profile.html', 'Profil', 'user'],
   ];
-  const here = location.pathname.split('/').pop() || 'kasir.html';
+  // Cloudflare serves /kasir.html as /kasir, so compare without the extension.
+  const here = (location.pathname.split('/').pop() || 'kasir').replace(/\.html$/, '');
 
   const css = `
   body{padding-bottom:calc(88px + env(safe-area-inset-bottom,0px))}
@@ -31,7 +32,7 @@
   const bar = document.createElement('div');
   bar.className = 'tabbar';
   bar.innerHTML = '<nav aria-label="Menu">' + pages.map(([href, name, ic]) =>
-    `<a href="${href}"${href === here ? ' aria-current="page"' : ''}><svg viewBox="0 0 24 24" aria-hidden="true">${icons[ic]}</svg>${name}</a>`
+    `<a href="${href}"${href.replace(/\.html$/, '') === here ? ' aria-current="page"' : ''}><svg viewBox="0 0 24 24" aria-hidden="true">${icons[ic]}</svg>${name}</a>`
   ).join('') + '</nav>';
   document.body.appendChild(bar);
 
