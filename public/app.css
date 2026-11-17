@@ -32,6 +32,8 @@ button:active:not(:disabled){transform:scale(.98)}
 button:disabled{opacity:.45;cursor:not-allowed}
 .ghost{background:#fff;color:var(--fg);border-color:var(--line)}
 button.ghost:hover:not(:disabled){background:var(--bone);opacity:1}
+button.danger{background:var(--red);color:#fff;border-color:var(--red)}
+button.danger:hover:not(:disabled){background:#7F2422;border-color:#7F2422;opacity:1}
 .big{width:100%;padding:16px;font-size:16px}
 label.btn{font-family:var(--sans);font-size:16px;text-transform:none;letter-spacing:normal;color:var(--on,#fff);font-weight:500;line-height:1}
 .or{display:flex;align-items:center;gap:12px;color:var(--muted);font-size:12px;font-family:var(--mono);text-transform:uppercase;letter-spacing:.05em}
