@@ -7,7 +7,7 @@ const SUPABASE_URL = "https://jptdttjievlgbvwijmma.supabase.co";
 const SUPABASE_ANON_KEY = "sb_publishable_NUBkLODH6Jig4cGhJNhwiw_F7wTFzs6";
 
 // Hanya hostname di daftar ini yang dianggap production. Hostname lain otomatis sandbox.
-const PROD_HOSTS = ["loyalty-system.abrahambobellson.workers.dev"];
+const PROD_HOSTS = ["loyalty-system.bosh-project.workers.dev"];
 window.APP_ENV = PROD_HOSTS.includes(location.hostname) ? "production" : "sandbox";
 
 // Cegah salah environment: klien asli tidak dibuka dari sandbox, klien dummy tidak dibuka dari production.

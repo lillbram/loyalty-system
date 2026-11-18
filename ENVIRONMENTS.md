@@ -6,7 +6,7 @@ One codebase, one Supabase project, two environments. The environment is decided
 |---|---|---|
 | Purpose | Real clients and real customers | Dummy clients (for example `matcha`), testing |
 | Git branch | `main` | `sandbox` |
-| Base URL | https://loyalty-system.abrahambobellson.workers.dev | https://sandbox-loyalty-system.abrahambobellson.workers.dev (confirm in Cloudflare > project > Deployments) |
+| Base URL | https://loyalty-system.bosh-project.workers.dev | preview URLs `https://<prefix>-loyalty-system.bosh-project.workers.dev` (copy the exact address of the `sandbox` branch from Cloudflare > project > Deployments) |
 | Page tag | none | SANDBOX tag shown |
 | Clients shown | `is_sandbox = false` | `is_sandbox = true` |
 
@@ -27,7 +27,7 @@ Replace `<base>` with the base URL of the environment and `<slug>` with the clie
 
 The admin list has copy buttons for the customer link and the cashier login link of each client.
 
-Example: `https://loyalty-system.abrahambobellson.workers.dev/login.html?c=<slug>`
+Example: `https://loyalty-system.bosh-project.workers.dev/login.html?c=<slug>`
 
 ## Access
 
