@@ -6,7 +6,8 @@ One codebase, one Supabase project, two environments. The environment is decided
 |---|---|---|
 | Purpose | Real clients and real customers | Dummy clients (for example `matcha`), testing |
 | Git branch | `main` | `sandbox` |
-| Base URL | https://loyalty-system.bosh-project.workers.dev | preview URLs `https://<prefix>-loyalty-system.bosh-project.workers.dev` (copy the exact address of the `sandbox` branch from Cloudflare > project > Deployments) |
+| Cloudflare project | `loyalty-system` (production branch `main`) | `sandbox-loyalty-system` (production branch `sandbox`) |
+| Base URL | https://loyalty-system.bosh-project.workers.dev | https://sandbox-loyalty-system.bosh-project.workers.dev |
 | Page tag | none | SANDBOX tag shown |
 | Clients shown | `is_sandbox = false` | `is_sandbox = true` |
 
