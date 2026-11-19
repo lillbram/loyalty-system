@@ -14,9 +14,26 @@
     minus: '<path d="M5 12h14"/>',
     chev: '<path d="M9 6l6 6-6 6"/>',
     back: '<path d="M15 6l-6 6 6 6"/>',
+    star: '<path d="M12 3.5l2.6 5.4 5.9.8-4.3 4.1 1 5.9L12 17l-5.2 2.7 1-5.9L3.5 9.7l5.9-.8z"/>',
+    heart: '<path d="M12 20s-7.5-4.6-7.5-10A4.3 4.3 0 0 1 12 7.4 4.3 4.3 0 0 1 19.5 10c0 5.4-7.5 10-7.5 10z"/>',
+    cup: '<path d="M5 9h11v5a5 5 0 0 1-5 5h-1a5 5 0 0 1-5-5zM16 10h1.5a2.5 2.5 0 0 1 0 5H16"/><path d="M8 3v2M12 3v2"/>',
+    leaf: '<path d="M5 19C5 10 10 5 19 5c0 9-5 14-14 14z"/><path d="M5 19l8-8"/>',
+    crown: '<path d="M4 8l4 4 4-6 4 6 4-4-1.5 10h-13z"/>',
+    flame: '<path d="M12 21a6 6 0 0 0 6-6c0-3-2-4.5-3-7-1 1.5-2 2-3 2 0-3-1-5-3-6 0 4-3 6-3 10a6 6 0 0 0 6 6z"/>',
+    smile: '<circle cx="12" cy="12" r="8.5"/><path d="M8.5 14a4 4 0 0 0 7 0M9 9.5h.01M15 9.5h.01"/>',
+    bolt: '<path d="M13 3L5 13h6l-1 8 8-10h-6z"/>',
   };
   window.ic = (n, cls) =>
     `<svg class="ic${cls ? ' ' + cls : ''}" viewBox="0 0 24 24" aria-hidden="true">${P[n]}</svg>`;
+
+  // Built-in stamp icons the cashier can choose from (Profil > Ikon stempel). 'logo' = uploaded image.
+  window.STAMP_ICONS = [['check', 'Centang'], ['star', 'Bintang'], ['heart', 'Hati'], ['cup', 'Cangkir'], ['leaf', 'Daun'],
+    ['crown', 'Mahkota'], ['flame', 'Api'], ['smile', 'Senyum'], ['bolt', 'Petir']];
+  // What a filled stamp shows for this client.
+  window.stampMark = (c) =>
+    c.stamp_icon === 'logo' && c.stamp_logo
+      ? `<img src="${escH(c.stamp_logo)}" alt="">`
+      : ic(P[c.stamp_icon] && c.stamp_icon !== 'logo' ? c.stamp_icon : 'check');
 
   window.escH = (s) =>
     String(s == null ? '' : s).replace(/[&<>"']/g, (c) => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
@@ -69,9 +86,7 @@
       const pop = o.pop === i ? ' pop' : '';
       if (i === t) g += `<div class="s gift${full ? ' on' : ''}${pop}" aria-label="Hadiah${full ? ' siap' : ''}">${ic('gift')}</div>`;
       else if (i <= n)
-        g += `<div class="s on${pop}" aria-label="Stempel ${i} terisi">${
-          c.stamp_logo ? `<img src="${escH(c.stamp_logo)}" alt="">` : ic('check')
-        }</div>`;
+        g += `<div class="s on${pop}" aria-label="Stempel ${i} terisi">${stampMark(c)}</div>`;
       else g += `<div class="s" aria-label="Stempel ${i}">${i}</div>`;
     }
     const last = (u.log || []).find((l) => l.action === 'stamp');

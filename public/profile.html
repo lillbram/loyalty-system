@@ -33,7 +33,7 @@ const $=id=>document.getElementById(id);
 const root=$('root');
 let client=null,email='',KEY='',def='';
 // Pending edits of the stamp config. logo: undefined = unchanged, '' = remove, data: URL = new.
-let cfg={total:10,reward:'',logo:undefined};
+let cfg={total:10,reward:'',logo:undefined,icon:undefined},pickOpen=false;
 
 function draw(){
   const v=$('url').value.trim()||def;
@@ -45,6 +45,15 @@ function draw(){
 
 function render(){
   const logo=cfg.logo===undefined?client.stamp_logo:cfg.logo;
+  const icon=cfg.icon===undefined?(client.stamp_icon||'check'):cfg.icon;
+  const mark=stampMark({stamp_icon:icon,stamp_logo:logo});
+  const picker=pickOpen?`<div class="icon-pick" role="group" aria-label="Pilih ikon stempel">
+      ${STAMP_ICONS.map(([id,nm])=>`<button type="button" class="ico${icon===id?' sel':''}" data-i="${id}" aria-label="${nm}" aria-pressed="${icon===id}">${ic(id)}</button>`).join('')}
+      ${logo?`<button type="button" class="ico${icon==='logo'?' sel':''}" data-i="logo" aria-label="Logo sendiri" aria-pressed="${icon==='logo'}"><img src="${escH(logo)}" alt=""></button>`:''}
+      <label class="ico up" for="lf" aria-label="Unggah logo sendiri">${ic('plus')}</label>
+      <input id="lf" type="file" accept="image/*">
+    </div>
+    <p class="hint" style="padding:0 0 12px">Pilih ikon, atau unggah logo sendiri.${logo?' <button type="button" class="link" id="lx" style="display:inline;padding:0">Hapus logo</button>':''}</p>`:'';
   root.innerHTML=topBar(client,'Kasir')
     +pageTitle('Profil','Akun kasir dan QR cetak untuk pelanggan.')
     +`<section class="hist"><h2>Profil</h2>
@@ -74,10 +83,10 @@ function render(){
             <div class="stepper"><button type="button" id="dec" aria-label="Kurangi">${ic('minus')}</button><output id="tot">${cfg.total}</output><button type="button" id="inc" aria-label="Tambah">${ic('plus')}</button></div></div>
           <div class="cfg-row"><div class="lab"><b>Hadiah</b><span>Didapat saat kartu penuh</span></div>
             <input class="reward" id="rw" maxlength="40" value="${escH(cfg.reward)}" aria-label="Hadiah" autocomplete="off"></div>
-          <div class="cfg-row"><div class="lab"><b>Logo stempel</b><span>Tampil di setiap stempel</span></div>
-            <div class="logo-ctl"><div class="logo-prev">${logo?`<img src="${escH(logo)}" alt="">`:ic('check')}</div>
-              <label class="pick" for="lf">Ganti</label><input id="lf" type="file" accept="image/*">
-              ${logo?'<button class="pick" type="button" id="lx">Hapus</button>':''}</div></div>
+          <div class="cfg-row"><div class="lab"><b>Ikon stempel</b><span>Tampil di setiap stempel</span></div>
+            <div class="logo-ctl"><div class="logo-prev">${mark}</div>
+              <button class="pick" type="button" id="icoBtn" aria-expanded="${pickOpen}">${pickOpen?'Tutup':'Ganti'}</button></div></div>
+          ${picker}
         </div>
         <button class="full sm" id="save" type="button" disabled>Simpan konfigurasi</button>
         <p class="msg" id="msg" hidden></p>
@@ -93,18 +102,25 @@ function render(){
   draw();
 
   const dirty=()=>{
-    const d=cfg.total!==(client.stamp_total||10)||cfg.reward.trim()!==(client.reward_name||'1 gratis')||cfg.logo!==undefined;
+    const d=cfg.total!==(client.stamp_total||10)||cfg.reward.trim()!==(client.reward_name||'1 gratis')||cfg.logo!==undefined||cfg.icon!==undefined;
     $('save').disabled=!d||!cfg.reward.trim();
   };
   $('dec').onclick=()=>{if(cfg.total>3){cfg.total--;$('tot').textContent=cfg.total;dirty()}};
   $('inc').onclick=()=>{if(cfg.total<20){cfg.total++;$('tot').textContent=cfg.total;dirty()}};
   $('rw').addEventListener('input',e=>{cfg.reward=e.target.value;dirty()});
-  $('lf').addEventListener('change',async e=>{
-    const f=e.target.files[0];if(!f)return;
-    try{cfg.logo=await fileToStampLogo(f);keepFocus();}catch(err){say(sbError({message:err.message}))}
-    e.target.value='';
-  });
-  if($('lx'))$('lx').onclick=()=>{cfg.logo='';keepFocus()};
+  $('icoBtn').onclick=()=>{pickOpen=!pickOpen;keepFocus()};
+  if(pickOpen){
+    document.querySelector('.icon-pick').addEventListener('click',e=>{
+      const b=e.target.closest('[data-i]');if(!b)return;
+      cfg.icon=b.dataset.i;keepFocus();
+    });
+    $('lf').addEventListener('change',async e=>{
+      const f=e.target.files[0];if(!f)return;
+      try{cfg.logo=await fileToStampLogo(f);cfg.icon='logo';keepFocus()}catch(err){say(sbError({message:err.message}))}
+      e.target.value='';
+    });
+    if($('lx'))$('lx').onclick=()=>{cfg.logo='';if(icon==='logo')cfg.icon='check';keepFocus()};
+  }
   $('save').onclick=save;
   dirty();
 }
@@ -116,13 +132,13 @@ async function save(){
   const lower=cfg.total<(client.stamp_total||10);
   if(lower&&!confirm('Jumlah stempel diturunkan. Kartu pelanggan yang stempelnya sudah melebihi jumlah baru akan menjadi penuh. Lanjutkan?'))return;
   $('save').disabled=true;
-  const {data,error}=await SB.rpc('kasir_save_config',{p_total:cfg.total,p_reward:cfg.reward.trim(),p_logo:cfg.logo===undefined?null:cfg.logo});
+  const {data,error}=await SB.rpc('kasir_save_config',{p_total:cfg.total,p_reward:cfg.reward.trim(),p_logo:cfg.logo===undefined?null:cfg.logo,p_icon:cfg.icon===undefined?null:cfg.icon});
   if(error){
     $('save').disabled=false;
     // The function is missing until supabase/schema.sql is run again.
     return say(/function|schema cache|permission/i.test(error.message||'')?'Fitur ini belum aktif di database. Jalankan schema.sql terbaru.':sbError(error));
   }
-  client=data;window.CLIENT=data;cfg={total:data.stamp_total,reward:data.reward_name,logo:undefined};
+  client=data;window.CLIENT=data;cfg={total:data.stamp_total,reward:data.reward_name,logo:undefined,icon:undefined};pickOpen=false;
   render();say('Konfigurasi disimpan.',true);
 }
 
@@ -133,7 +149,7 @@ async function save(){
   applyBrand(c,'Profil');
   KEY='customer-url-'+c.slug;
   def=new URL('index.html?c='+encodeURIComponent(c.slug),location.href).href;
-  cfg={total:c.stamp_total||10,reward:c.reward_name||'1 gratis',logo:undefined};
+  cfg={total:c.stamp_total||10,reward:c.reward_name||'1 gratis',logo:undefined,icon:undefined};
   root.hidden=false;render();
 })();
 </script>

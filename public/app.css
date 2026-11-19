@@ -168,3 +168,12 @@ label.pick,button.pick{font-family:var(--sans);font-size:14px;font-weight:600;co
 /* misc */
 .hist{display:grid}
 .card label{display:grid;gap:6px}
+
+/* stamp icon picker (Profil) */
+.icon-pick{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px;padding:4px 0 14px}
+.ico{aspect-ratio:1;min-height:0;padding:0;border-radius:50%;background:#fff;color:var(--ink);border:1px solid #e0e0e0;display:grid;place-items:center;overflow:hidden;cursor:pointer;font-weight:500}
+.ico .ic{width:26px;height:26px}
+.ico img{width:100%;height:100%;object-fit:cover}
+.ico:hover:not(:disabled){background:var(--soft);opacity:1}
+.ico.sel{background:var(--accent,#111);border-color:var(--accent,#111);color:var(--on,#fff)}
+.ico.up{border-style:dashed;color:var(--mute);cursor:pointer}

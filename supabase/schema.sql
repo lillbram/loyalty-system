@@ -24,6 +24,7 @@ drop function if exists card_json(text);
 drop function if exists get_card(text);
 drop function if exists phone_log(text);
 drop function if exists admin_save_client(uuid, text, text, text, text, text, text, boolean);
+drop function if exists kasir_save_config(int, text, text);
 
 -- ---------- tables ----------
 create table if not exists clients (
@@ -78,6 +79,17 @@ create table if not exists customers (
 alter table clients add column if not exists stamp_total int  not null default 10;
 alter table clients add column if not exists reward_name text not null default '1 gratis';
 alter table clients add column if not exists stamp_logo  text;
+-- Stamp icon: a built-in icon id, or 'logo' (the uploaded stamp_logo). Clients that already had a logo keep showing it.
+do $$ begin
+  if not exists (select 1 from information_schema.columns
+                 where table_schema = 'public' and table_name = 'clients' and column_name = 'stamp_icon') then
+    alter table clients add column stamp_icon text not null default 'check';
+    update clients set stamp_icon = 'logo' where stamp_logo is not null;
+  end if;
+end $$;
+alter table clients drop constraint if exists clients_stamp_icon_check;
+alter table clients add constraint clients_stamp_icon_check
+  check (stamp_icon in ('check','star','heart','cup','leaf','crown','flame','smile','bolt','logo'));
 alter table clients drop constraint if exists clients_stamp_total_check;
 alter table clients add constraint clients_stamp_total_check check (stamp_total between 3 and 20);
 alter table customers drop constraint if exists customers_stamps_check;
@@ -170,7 +182,8 @@ language sql immutable as $$
   select json_build_object('id', c.id, 'slug', c.slug, 'name', c.name, 'logo', c.logo,
                             'color', c.color, 'key_type', c.key_type, 'key_label', c.key_label,
                             'is_sandbox', c.is_sandbox,
-                            'stamp_total', c.stamp_total, 'reward_name', c.reward_name, 'stamp_logo', c.stamp_logo);
+                            'stamp_total', c.stamp_total, 'reward_name', c.reward_name, 'stamp_logo', c.stamp_logo,
+                            'stamp_icon', c.stamp_icon);
 $$;
 
 create or replace function card_json(cid uuid, k text) returns json
@@ -303,7 +316,8 @@ end $$;
 -- Cashier edits the stamp card of its own client: stamp count, reward name, stamp logo.
 -- Lowering the count caps existing cards at the new count (they become full).
 -- p_logo: null keeps the current logo, '' removes it, else a small data: image (resized by the page).
-create or replace function kasir_save_config(p_total int, p_reward text, p_logo text default null) returns json
+-- p_icon: null keeps the current icon; else a built-in icon id or 'logo' (needs an uploaded logo).
+create or replace function kasir_save_config(p_total int, p_reward text, p_logo text default null, p_icon text default null) returns json
 language plpgsql security definer set search_path = public as $$
 declare cid uuid := require_cashier(); rw text := btrim(coalesce(p_reward, '')); c clients;
 begin
@@ -313,9 +327,17 @@ begin
     if p_logo !~ '^data:image/(png|jpeg|webp|gif);base64,' then raise exception 'bad_logo'; end if;
     if char_length(p_logo) > 60000 then raise exception 'logo_too_big'; end if;
   end if;
+  if p_icon is not null and p_icon not in ('check','star','heart','cup','leaf','crown','flame','smile','bolt','logo') then
+    raise exception 'bad_icon';
+  end if;
   update clients set stamp_total = p_total, reward_name = rw,
-         stamp_logo = case when p_logo is null then stamp_logo when p_logo = '' then null else p_logo end
+         stamp_logo = case when p_logo is null then stamp_logo when p_logo = '' then null else p_logo end,
+         stamp_icon = coalesce(p_icon, stamp_icon)
    where id = cid returning * into c;
+  -- no uploaded logo left -> fall back to the default icon
+  if c.stamp_icon = 'logo' and c.stamp_logo is null then
+    update clients set stamp_icon = 'check' where id = cid returning * into c;
+  end if;
   update customers set stamps = least(stamps, p_total) where client_id = cid and stamps > p_total;
   return client_json(c);
 end $$;
@@ -456,7 +478,7 @@ revoke all on all functions in schema public from public, anon, authenticated;
 grant execute on function get_client(text), get_card(text, text) to anon, authenticated;
 grant execute on function my_role(), is_admin() to authenticated;  -- is_admin(): used by the storage policies below
 grant execute on function my_client(), kasir_open(text), add_stamp(text), undo_last(text),
-  redeem_free(text), today_log(), key_log(text), kasir_save_config(int, text, text) to authenticated;
+  redeem_free(text), today_log(), key_log(text), kasir_save_config(int, text, text, text) to authenticated;
 grant execute on function admin_list_clients(),
   admin_save_client(uuid, text, text, text, text, text, text, boolean, boolean),
   admin_list_cashiers(uuid), admin_remove_cashier(uuid),

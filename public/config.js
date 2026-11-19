@@ -88,6 +88,7 @@ window.sbError = (e) => {
     not_full: "Kartu belum penuh.",
     bad_total: "Jumlah stempel harus 3 sampai 20.",
     bad_reward: "Nama hadiah 1 sampai 40 karakter.",
+    bad_icon: "Ikon stempel tidak dikenal.",
     not_found: "Data tidak ditemukan.",
     email_taken: "Email sudah terdaftar.",
     weak_password: "Password harus 8–72 karakter.",
