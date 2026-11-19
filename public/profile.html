@@ -4,91 +4,137 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>Profil Kasir</title>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&family=Newsreader:opsz,wght@6..72,400;500&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
 <link rel="stylesheet" href="admin.css">
 <link rel="stylesheet" href="app.css">
 <style>
-.poster{border:1px solid var(--line);border-radius:12px;padding:32px 20px;display:grid;justify-items:center;gap:14px;text-align:center;background:#fff;color:#111}
-.poster h2{font-size:28px}
-.poster p{margin:0;color:#444;line-height:1.5}
-.poster #qr{padding:8px;background:#fff}
-.poster .url{font-size:12px;color:#777;overflow-wrap:anywhere;font-family:var(--mono)}
-#logo{width:72px;height:72px;border-radius:14px}
 @media print{
   @page{margin:16mm}
   body{padding:0;background:#fff}
+  .wrap{padding:0}
   .wrap>*:not(#posterCard){display:none!important}
   #posterCard{border:0;padding:0;background:none}
   #posterCard>*:not(.poster){display:none!important}
-  .poster{border:0;padding:0}
   .poster h2{font-size:40px}
   .poster p{font-size:18px}
 }
 </style>
 </head>
 <body>
-<main class="wrap" id="app" hidden>
-  <div>
-    <h1>Profil</h1>
-    <p class="sub">Akun kasir dan QR cetak untuk pelanggan.</p>
-  </div>
-
-  <section class="card">
-    <span class="lbl">Akun</span>
-    <span class="email" id="email">…</span>
-  </section>
-
-  <section class="card" id="posterCard">
-    <span class="lbl">QR untuk pelanggan</span>
-    <div class="poster">
-      <img id="logo" alt="" hidden>
-      <h2 class="brand-name">Kartu Stempel</h2>
-      <div id="qr"></div>
-      <p><b>Scan untuk cek stempelmu</b><br>Beli 10x, gratis 1</p>
-      <p class="url" id="urlText"></p>
-    </div>
-    <label class="lbl" for="url">Alamat halaman pelanggan</label>
-    <input id="url" type="url" inputmode="url" spellcheck="false">
-    <p class="note warn" id="warn" hidden>Alamat ini hanya jalan di jaringan/komputer ini. Sebelum dicetak, ganti dengan alamat publik setelah website di-deploy.</p>
-    <p class="note">QR mengarah ke halaman pelanggan. Pelanggan lalu mengetik nomor HP untuk melihat kartunya.</p>
-    <button id="print">Cetak QR</button>
-  </section>
-
-  <button class="danger" id="logout">Keluar</button>
-</main>
+<main class="wrap" id="root" hidden></main>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
 <script src="config.js"></script>
+<script src="ui.js"></script>
 <script src="nav.js"></script>
 <script>
 const $=id=>document.getElementById(id);
-let KEY='',def='';
+const root=$('root');
+let client=null,email='',KEY='',def='';
+// Pending edits of the stamp config. logo: undefined = unchanged, '' = remove, data: URL = new.
+let cfg={total:10,reward:'',logo:undefined};
 
 function draw(){
   const v=$('url').value.trim()||def;
   $('urlText').textContent=v;
   const q=$('qr');q.innerHTML='';
-  try{new QRCode(q,{text:v,width:220,height:220,correctLevel:QRCode.CorrectLevel.M})}catch(e){}
+  try{new QRCode(q,{text:v,width:140,height:140,correctLevel:QRCode.CorrectLevel.M})}catch(e){}
   $('warn').hidden=!/^https?:\/\/(localhost|127\.|192\.168\.|10\.|0\.0\.0\.0)/i.test(v);
 }
-$('url').addEventListener('input',()=>{
-  try{localStorage.setItem(KEY,$('url').value.trim())}catch(e){}
+
+function render(){
+  const logo=cfg.logo===undefined?client.stamp_logo:cfg.logo;
+  root.innerHTML=topBar(client,'Kasir')
+    +pageTitle('Profil','Akun kasir dan QR cetak untuk pelanggan.')
+    +`<section class="hist"><h2>Profil</h2>
+        <div class="kv"><span>Email</span><span>${escH(email)}</span></div>
+        <div class="kv"><span>Toko</span><span>${escH(client.name)}</span></div>
+      </section>
+
+      <section class="sect" style="display:grid;gap:10px"><h2>QR code</h2>
+        <div class="card" id="posterCard">
+          <div class="poster">
+            ${client.logo?`<img class="plogo" src="${escH(client.logo)}" alt="">`:''}
+            <h2>${escH(client.name)}</h2>
+            <div class="qr-img" id="qr"></div>
+            <p><b>Scan untuk cek stempelmu</b><br>Beli ${client.stamp_total||10}x, gratis 1</p>
+            <p class="url" id="urlText"></p>
+          </div>
+          <div class="urlbox">${ic('link')}<input id="url" type="url" inputmode="url" spellcheck="false" aria-label="Alamat halaman pelanggan"></div>
+          <p class="hint warn" id="warn" hidden>Alamat ini hanya jalan di jaringan/komputer ini. Sebelum dicetak, ganti dengan alamat publik setelah website di-deploy.</p>
+          <p class="hint" style="text-align:center">QR mengarah ke halaman pelanggan. Pelanggan lalu mengetik ${escH(client.key_label.toLowerCase())} untuk melihat kartunya.</p>
+          <button class="full sm" id="print" type="button">${ic('print')}Cetak QR</button>
+        </div>
+      </section>
+
+      <section class="sect" style="display:grid;gap:10px"><h2>Konfigurasi stempel</h2>
+        <div class="cfg">
+          <div class="cfg-row"><div class="lab"><b>Jumlah stempel</b><span>Untuk 1 kartu penuh</span></div>
+            <div class="stepper"><button type="button" id="dec" aria-label="Kurangi">${ic('minus')}</button><output id="tot">${cfg.total}</output><button type="button" id="inc" aria-label="Tambah">${ic('plus')}</button></div></div>
+          <div class="cfg-row"><div class="lab"><b>Hadiah</b><span>Didapat saat kartu penuh</span></div>
+            <input class="reward" id="rw" maxlength="40" value="${escH(cfg.reward)}" aria-label="Hadiah" autocomplete="off"></div>
+          <div class="cfg-row"><div class="lab"><b>Logo stempel</b><span>Tampil di setiap stempel</span></div>
+            <div class="logo-ctl"><div class="logo-prev">${logo?`<img src="${escH(logo)}" alt="">`:ic('check')}</div>
+              <label class="pick" for="lf">Ganti</label><input id="lf" type="file" accept="image/*">
+              ${logo?'<button class="pick" type="button" id="lx">Hapus</button>':''}</div></div>
+        </div>
+        <button class="full sm" id="save" type="button" disabled>Simpan konfigurasi</button>
+        <p class="msg" id="msg" hidden></p>
+      </section>
+
+      <button class="danger full" id="logout" type="button">Keluar</button>`;
+
+  let u=def;try{u=localStorage.getItem(KEY)||def}catch(e){}
+  $('url').value=u;
+  $('url').addEventListener('input',()=>{try{localStorage.setItem(KEY,$('url').value.trim())}catch(e){}draw()});
+  $('print').onclick=()=>window.print();
+  $('logout').onclick=confirmBye;
   draw();
-});
-$('print').onclick=()=>window.print();
-$('logout').onclick=confirmBye;
+
+  const dirty=()=>{
+    const d=cfg.total!==(client.stamp_total||10)||cfg.reward.trim()!==(client.reward_name||'1 gratis')||cfg.logo!==undefined;
+    $('save').disabled=!d||!cfg.reward.trim();
+  };
+  $('dec').onclick=()=>{if(cfg.total>3){cfg.total--;$('tot').textContent=cfg.total;dirty()}};
+  $('inc').onclick=()=>{if(cfg.total<20){cfg.total++;$('tot').textContent=cfg.total;dirty()}};
+  $('rw').addEventListener('input',e=>{cfg.reward=e.target.value;dirty()});
+  $('lf').addEventListener('change',async e=>{
+    const f=e.target.files[0];if(!f)return;
+    try{cfg.logo=await fileToStampLogo(f);keepFocus();}catch(err){say(sbError({message:err.message}))}
+    e.target.value='';
+  });
+  if($('lx'))$('lx').onclick=()=>{cfg.logo='';keepFocus()};
+  $('save').onclick=save;
+  dirty();
+}
+// Re-render with the pending values, keeping what the user typed.
+function keepFocus(){const y=window.scrollY;render();window.scrollTo(0,y)}
+function say(t,ok){const m=$('msg');if(!m)return;m.textContent=t||'';m.className='msg '+(ok?'ok':'err');m.hidden=!t}
+
+async function save(){
+  const lower=cfg.total<(client.stamp_total||10);
+  if(lower&&!confirm('Jumlah stempel diturunkan. Kartu pelanggan yang stempelnya sudah melebihi jumlah baru akan menjadi penuh. Lanjutkan?'))return;
+  $('save').disabled=true;
+  const {data,error}=await SB.rpc('kasir_save_config',{p_total:cfg.total,p_reward:cfg.reward.trim(),p_logo:cfg.logo===undefined?null:cfg.logo});
+  if(error){
+    $('save').disabled=false;
+    // The function is missing until supabase/schema.sql is run again.
+    return say(/function|schema cache|permission/i.test(error.message||'')?'Fitur ini belum aktif di database. Jalankan schema.sql terbaru.':sbError(error));
+  }
+  client=data;window.CLIENT=data;cfg={total:data.stamp_total,reward:data.reward_name,logo:undefined};
+  render();say('Konfigurasi disimpan.',true);
+}
+
 (async()=>{
   const s=await guard();if(!s)return;
   const c=await loadClient();if(!c)return;
+  client=c;email=s.user.email||'';
   applyBrand(c,'Profil');
   KEY='customer-url-'+c.slug;
   def=new URL('index.html?c='+encodeURIComponent(c.slug),location.href).href;
-  let url=def;
-  try{url=localStorage.getItem(KEY)||def}catch(e){}
-  $('url').value=url;
-  $('email').textContent=s.user.email||'';
-  $('app').hidden=false;draw();
+  cfg={total:c.stamp_total||10,reward:c.reward_name||'1 gratis',logo:undefined};
+  root.hidden=false;render();
 })();
 </script>
 </body>

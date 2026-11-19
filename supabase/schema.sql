@@ -68,11 +68,20 @@ alter table cashiers alter column client_id set not null;
 create table if not exists customers (
   client_id  uuid not null references clients(id) on delete cascade,
   key_id     text not null,
-  stamps     int  not null default 0 check (stamps between 0 and 10),
+  stamps     int  not null default 0 check (stamps between 0 and 20),
   free       int  not null default 0 check (free >= 0),
   created_at timestamptz not null default now(),
   primary key (client_id, key_id)
 );
+
+-- Stamp card settings per client (editable by the cashier on the Profil page).
+alter table clients add column if not exists stamp_total int  not null default 10;
+alter table clients add column if not exists reward_name text not null default '1 gratis';
+alter table clients add column if not exists stamp_logo  text;
+alter table clients drop constraint if exists clients_stamp_total_check;
+alter table clients add constraint clients_stamp_total_check check (stamp_total between 3 and 20);
+alter table customers drop constraint if exists customers_stamps_check;
+alter table customers add constraint customers_stamps_check check (stamps between 0 and 20);
 
 create table if not exists stamp_log (
   id         bigint generated always as identity primary key,
@@ -160,7 +169,8 @@ create or replace function client_json(c clients) returns json
 language sql immutable as $$
   select json_build_object('id', c.id, 'slug', c.slug, 'name', c.name, 'logo', c.logo,
                             'color', c.color, 'key_type', c.key_type, 'key_label', c.key_label,
-                            'is_sandbox', c.is_sandbox);
+                            'is_sandbox', c.is_sandbox,
+                            'stamp_total', c.stamp_total, 'reward_name', c.reward_name, 'stamp_logo', c.stamp_logo);
 $$;
 
 create or replace function card_json(cid uuid, k text) returns json
@@ -169,6 +179,8 @@ language sql stable security definer set search_path = public as $$
     'key', k,
     'stamps', coalesce((select stamps from customers where client_id = cid and key_id = k), 0),
     'free',   coalesce((select free   from customers where client_id = cid and key_id = k), 0),
+    'since',  (select created_at from customers where client_id = cid and key_id = k),
+    'total',  (select stamp_total from clients where id = cid),
     'log', coalesce((
       select json_agg(x) from (
         select action, stamp_no, created_at as at
@@ -226,12 +238,13 @@ end $$;
 
 create or replace function add_stamp(p text) returns json
 language plpgsql security definer set search_path = public as $$
-declare cid uuid := require_cashier(); k text; c customers; l stamp_log;
+declare cid uuid := require_cashier(); k text; c customers; l stamp_log; tot int;
 begin
   k := key_for(cid, p);
+  select stamp_total into tot from clients where id = cid;
   select * into c from customers where client_id = cid and key_id = k for update;
   if not found then raise exception 'not_found'; end if;
-  if c.stamps >= 10 then raise exception 'card_full'; end if;
+  if c.stamps >= tot then raise exception 'card_full'; end if;
   select * into l from stamp_log where client_id = cid and key_id = k order by id desc limit 1;
   if found and l.action = 'stamp' and l.created_at > now() - interval '20 seconds' then
     raise exception 'duplicate';
@@ -261,12 +274,13 @@ end $$;
 
 create or replace function redeem_free(p text) returns json
 language plpgsql security definer set search_path = public as $$
-declare cid uuid := require_cashier(); k text; c customers;
+declare cid uuid := require_cashier(); k text; c customers; tot int;
 begin
   k := key_for(cid, p);
+  select stamp_total into tot from clients where id = cid;
   select * into c from customers where client_id = cid and key_id = k for update;
   if not found then raise exception 'not_found'; end if;
-  if c.stamps < 10 then raise exception 'not_full'; end if;
+  if c.stamps < tot then raise exception 'not_full'; end if;
   update customers set stamps = 0, free = free + 1 where client_id = cid and key_id = k;
   insert into stamp_log(client_id, key_id, action, cashier) values (cid, k, 'redeem', auth.uid());
   return card_json(cid, k);
@@ -282,8 +296,28 @@ begin
       from stamp_log
       where client_id = cid
         and created_at >= (date_trunc('day', now() at time zone 'Asia/Jakarta') at time zone 'Asia/Jakarta')
-      order by id desc limit 50
+      order by id desc limit 200
     ) x), '[]'::json);
+end $$;
+
+-- Cashier edits the stamp card of its own client: stamp count, reward name, stamp logo.
+-- Lowering the count caps existing cards at the new count (they become full).
+-- p_logo: null keeps the current logo, '' removes it, else a small data: image (resized by the page).
+create or replace function kasir_save_config(p_total int, p_reward text, p_logo text default null) returns json
+language plpgsql security definer set search_path = public as $$
+declare cid uuid := require_cashier(); rw text := btrim(coalesce(p_reward, '')); c clients;
+begin
+  if p_total is null or p_total not between 3 and 20 then raise exception 'bad_total'; end if;
+  if char_length(rw) not between 1 and 40 then raise exception 'bad_reward'; end if;
+  if p_logo is not null and p_logo <> '' then
+    if p_logo !~ '^data:image/(png|jpeg|webp|gif);base64,' then raise exception 'bad_logo'; end if;
+    if char_length(p_logo) > 60000 then raise exception 'logo_too_big'; end if;
+  end if;
+  update clients set stamp_total = p_total, reward_name = rw,
+         stamp_logo = case when p_logo is null then stamp_logo when p_logo = '' then null else p_logo end
+   where id = cid returning * into c;
+  update customers set stamps = least(stamps, p_total) where client_id = cid and stamps > p_total;
+  return client_json(c);
 end $$;
 
 -- p null = latest 50 of all customers; else full history of one customer
@@ -373,7 +407,13 @@ create or replace function admin_remove_cashier(uid uuid) returns void
 language plpgsql security definer set search_path = public as $$
 begin
   perform require_admin();
-  delete from cashiers where user_id = uid;
+  -- Delete the login itself (cashiers row goes with it by cascade), so the email can be reused.
+  -- Only for cashier accounts; never touches an admin login.
+  if exists (select 1 from cashiers where user_id = uid) and not exists (select 1 from admins where user_id = uid) then
+    delete from auth.users where id = uid;
+  else
+    delete from cashiers where user_id = uid;
+  end if;
 end $$;
 
 -- Creates a login (auth user, email auto-confirmed) and binds it to one client as cashier.
@@ -416,7 +456,7 @@ revoke all on all functions in schema public from public, anon, authenticated;
 grant execute on function get_client(text), get_card(text, text) to anon, authenticated;
 grant execute on function my_role(), is_admin() to authenticated;  -- is_admin(): used by the storage policies below
 grant execute on function my_client(), kasir_open(text), add_stamp(text), undo_last(text),
-  redeem_free(text), today_log(), key_log(text) to authenticated;
+  redeem_free(text), today_log(), key_log(text), kasir_save_config(int, text, text) to authenticated;
 grant execute on function admin_list_clients(),
   admin_save_client(uuid, text, text, text, text, text, text, boolean, boolean),
   admin_list_cashiers(uuid), admin_remove_cashier(uuid),

@@ -4,43 +4,52 @@
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>Log Stempel</title>
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&family=Newsreader:opsz,wght@6..72,400;500&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
 <link rel="stylesheet" href="admin.css">
 <link rel="stylesheet" href="app.css">
 </head>
 <body>
-<main class="wrap" id="app" hidden>
-  <div>
-    <h1>Log</h1>
-    <p class="sub">Semua riwayat stempel per pelanggan.</p>
-  </div>
-
-  <section class="card">
-    <form class="row" id="f">
-      <input id="hp" autocomplete="off" autocapitalize="off" spellcheck="false">
-      <button type="submit">Cari</button>
-    </form>
-    <p class="msg" id="msg" hidden></p>
-  </section>
-
-  <section class="card">
-    <span class="lbl" id="title">Terbaru (semua pelanggan)</span>
-    <div class="sum" id="sum" hidden></div>
-    <div class="list" id="list"></div>
-    <button id="all" class="ghost" hidden>Lihat semua pelanggan</button>
-  </section>
-</main>
+<main class="wrap" id="root" hidden></main>
 
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
 <script src="config.js"></script>
+<script src="ui.js"></script>
 <script src="nav.js"></script>
 <script>
 const $=id=>document.getElementById(id);
+const root=$('root');
 let client=null;
 const fmt=k=>fmtKey(client.key_type,k);
-const dtm=a=>new Date(a).toLocaleString('id-ID',{day:'numeric',month:'short',hour:'2-digit',minute:'2-digit'});
-const name={stamp:l=>'Stempel ke-'+l.stamp_no,undo:l=>'Dibatalkan: ke-'+l.stamp_no,redeem:()=>'Tukar gratis'};
-const say=t=>{$('msg').textContent=t;$('msg').hidden=!t};
+const badge={
+  stamp:l=>`<span class="bd stamp">Stempel ke-${l.stamp_no}</span>`,
+  undo:l=>`<span class="bd undo">Dibatalkan · ke-${l.stamp_no}</span>`,
+  redeem:()=>`<span class="bd redeem">${ic('gift')}Tukar gratis</span>`,
+};
+const say=t=>{const m=$('msg');m.textContent=t;m.hidden=!t};
+
+function shell(){
+  const k=KEYS[client.key_type]||KEYS.custom;
+  root.innerHTML=topBar(client,'Kasir')
+    +pageTitle('Log','Semua riwayat stempel per pelanggan.')
+    +`<form class="row" id="f" novalidate>
+        <input id="hp" class="sm" type="${k.type==='tel'?'tel':'text'}" inputmode="${k.mode}" placeholder="${escH('Cari '+client.key_label.toLowerCase()+'…')}"
+          aria-label="${escH(client.key_label)}" autocomplete="off" autocapitalize="off" spellcheck="false" enterkeyhint="search">
+        <button class="sm" type="submit" style="width:80px;padding:0">Cari</button>
+      </form>
+      <p class="msg err" id="msg" hidden></p>
+      <section class="hist">
+        <h2 id="title">Terbaru · semua pelanggan</h2>
+        <div class="sum" id="sum" hidden style="margin-top:8px"></div>
+        <div id="list"></div>
+        <button class="ghost full sm" id="all" hidden style="margin-top:12px">Lihat semua pelanggan</button>
+      </section>`;
+  $('f').addEventListener('submit',e=>{e.preventDefault();load($('hp').value.trim()||null)});
+  $('list').addEventListener('click',e=>{
+    const b=e.target.closest('[data-p]');if(!b)return;
+    $('hp').value=fmt(b.dataset.p);load(b.dataset.p);
+  });
+  $('all').onclick=()=>{$('hp').value='';load(null)};
+}
 
 async function load(p){
   say('');
@@ -48,7 +57,7 @@ async function load(p){
   if(error){say(sbError(error));if((error.message||'').includes('forbidden'))bye();return}
   const one=!!p;
   if(one&&data.length)$('hp').value=fmt(data[0].key);
-  $('title').textContent=one?'Riwayat '+fmt(data.length?data[0].key:p):'Terbaru (semua pelanggan)';
+  $('title').textContent=one?'Riwayat '+fmt(data.length?data[0].key:p):'Terbaru · semua pelanggan';
   $('all').hidden=!one;
   const s=$('sum');s.hidden=!one;
   if(one){
@@ -56,25 +65,15 @@ async function load(p){
     s.innerHTML=`<span><b>${n('stamp')}</b> stempel</span><span><b>${n('redeem')}</b> tukar gratis</span><span><b>${n('undo')}</b> batal</span>`;
   }
   $('list').innerHTML=data.length?data.map(l=>
-    `<button class="item" data-p="${l.key}"><span><span class="tag ${l.action}">${name[l.action](l)}</span>${one?'':' '+fmt(l.key)}</span><span>${dtm(l.at)}</span></button>`
+    `<button class="lrow" type="button" data-p="${escH(l.key)}"><span class="l">${badge[l.action](l)}${one?'':`<span>${escH(fmt(l.key))}</span>`}</span><span class="t">${escH(logTime(l.at))}</span></button>`
   ).join(''):'<p class="empty">Belum ada riwayat.</p>';
 }
-$('f').addEventListener('submit',e=>{
-  e.preventDefault();
-  load($('hp').value.trim()||null);
-});
-$('list').addEventListener('click',e=>{
-  const b=e.target.closest('.item');if(!b)return;
-  $('hp').value=fmt(b.dataset.p);load(b.dataset.p);
-});
-$('all').onclick=()=>{$('hp').value='';load(null)};
+
 (async()=>{
   if(!await guard())return;
   client=await loadClient();if(!client)return;
   applyBrand(client,'Log');
-  const k=KEYS[client.key_type]||KEYS.custom,i=$('hp');
-  i.type=k.type==='tel'?'tel':'text';i.inputMode=k.mode;i.placeholder=k.ph;i.setAttribute('aria-label',client.key_label);
-  $('app').hidden=false;load(null);
+  shell();root.hidden=false;load(null);
 })();
 </script>
 </body>

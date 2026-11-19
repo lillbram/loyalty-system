@@ -48,6 +48,15 @@ window.KEYS = {
 };
 window.fmtKey = (t, k) => (KEYS[t] || KEYS.custom).fmt(String(k));
 
+// Masked ID for screens that others may see. Phone: "0812 •••• 5757" (short: "•••• 5757").
+window.maskKey = (t, k, short) => {
+  k = String(k);
+  if (t === "phone") return short ? "•••• " + k.slice(-4) : k.slice(0, 4) + " •••• " + k.slice(-4);
+  const v = fmtKey(t, k);
+  if (k.length <= 5) return v;
+  return short ? "•••• " + k.slice(-3) : v.slice(0, 2) + "••••" + k.slice(-2);
+};
+
 // Terapkan warna, logo, dan nama klien ke halaman.
 // Elemen opsional: #logo (<img>), .brand-name.
 window.applyBrand = (c, titleSuffix) => {
@@ -76,7 +85,9 @@ window.sbError = (e) => {
     card_full: "Kartu sudah penuh. Tukar gratis dulu.",
     duplicate: "Stempel baru saja diberikan. Tunggu 20 detik untuk mencegah dobel.",
     cannot_undo: "Tidak ada stempel yang bisa dibatalkan (maks 10 menit).",
-    not_full: "Kartu belum 10/10.",
+    not_full: "Kartu belum penuh.",
+    bad_total: "Jumlah stempel harus 3 sampai 20.",
+    bad_reward: "Nama hadiah 1 sampai 40 karakter.",
     not_found: "Data tidak ditemukan.",
     email_taken: "Email sudah terdaftar.",
     weak_password: "Password harus 8–72 karakter.",

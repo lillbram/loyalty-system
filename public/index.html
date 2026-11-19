@@ -5,96 +5,75 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>Kartu Stempel</title>
 <meta name="claude:viewport-fit-sides" content="cover">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&family=Newsreader:opsz,wght@6..72,400;500&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
 <link rel="stylesheet" href="admin.css">
 <link rel="stylesheet" href="app.css">
 </head>
 <body>
-
-<div class="wrap">
-  <div class="brand">
-    <img id="logo" alt="" hidden>
-    <div>
-      <h1 class="brand-name">Kartu Stempel</h1>
-      <p class="sub" id="sub">Memuat…</p>
-    </div>
-  </div>
-
-  <p class="err" id="fatal" hidden></p>
-
-  <form class="card" id="f" hidden>
-    <label for="hp" id="lbl">ID</label>
-    <div class="row">
-      <input id="hp" autocomplete="off" autocapitalize="off" spellcheck="false">
-      <button type="submit">Cek</button>
-    </div>
-    <p class="err" id="err" hidden></p>
-  </form>
-
-  <section class="card" id="res" hidden>
-    <div class="head"><span class="phone" id="ph"></span><span class="count" id="ct"></span></div>
-    <div class="qrbox"><div id="qrc"></div><span class="note">Tunjukkan QR ini ke kasir setiap beli</span></div>
-    <div class="grid" id="g"></div>
-    <div class="reward" id="rw"></div>
-    <div class="hist" id="hs"></div>
-  </section>
-</div>
+<main class="wrap" id="root"><p class="hint">Memuat…</p></main>
 
 <script src="https://cdnjs.cloudflare.com/ajax/libs/qrcodejs/1.0.0/qrcode.min.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
 <script src="config.js"></script>
+<script src="ui.js"></script>
 <script>
-const leaf='<svg viewBox="0 0 256 256" aria-hidden="true"><polyline points="216 72 104 184 48 128"/></svg>';
 const $=id=>document.getElementById(id);
-const dt=a=>new Date(a).toLocaleDateString('id-ID',{day:'numeric',month:'short'});
-const label=l=>(l.action==='stamp'?`Stempel ke-${l.stamp_no}`:l.action==='undo'?`Stempel ke-${l.stamp_no} dibatalkan`:'Tukar gratis')+' · '+dt(l.at);
 const slug=(new URLSearchParams(location.search).get('c')||'').toLowerCase();
 let client=null;
+const root=$('root');
+const lbl=()=>client.key_label.toLowerCase();
+const reward=()=>client.reward_name||'1 gratis';
 
-function fatal(t){$('fatal').textContent=t;$('fatal').hidden=false;$('sub').textContent=''}
+function viewFatal(t){root.innerHTML=`<p class="err">${escH(t)}</p>`}
 
-async function init(){
-  if(!window.SB_READY)return fatal('Backend belum diatur. Isi config.js.');
-  if(!slug)return fatal('Link tidak lengkap. Scan QR dari kedai.');
-  const {data,error}=await SB.rpc('get_client',{s:slug});
-  if(error)return fatal(sbError(error));
-  const mm=envMismatch(data);if(mm)return fatal(mm);
-  client=data;applyBrand(client);
+// Screen 1: enter the ID.
+function viewForm(){
   const k=KEYS[client.key_type]||KEYS.custom;
-  $('sub').textContent=`Masukkan ${client.key_label} untuk cek stempel. Beli 10x, gratis 1.`;
-  $('lbl').textContent=client.key_label;
-  const i=$('hp');i.type=k.type;i.inputMode=k.mode;i.placeholder=k.ph;
-  $('f').hidden=false;
+  root.innerHTML=topBar(client)
+    +pageTitle('Cek stempelmu',`Masukkan ${lbl()} yang kamu pakai di kasir.`)
+    +`<form id="f" style="display:grid;gap:12px" novalidate>
+        <input id="hp" type="${k.type}" inputmode="${k.mode}" placeholder="${escH(k.ph)}" aria-label="${escH(client.key_label)}"
+          autocomplete="off" autocapitalize="off" spellcheck="false" enterkeyhint="go">
+        <button class="full" type="submit">Lihat kartu stempel</button>
+        <p class="err" id="err" hidden></p>
+        <p class="hint">Belum punya kartu? Beli pertamamu, kasir akan mendaftarkan ${lbl()} kamu dan memberi stempel pertama.</p>
+      </form>`;
+  $('f').addEventListener('submit',async e=>{
+    e.preventDefault();
+    const er=$('err');er.hidden=true;
+    const b=$('f').querySelector('button');b.disabled=true;
+    const {data,error}=await SB.rpc('get_card',{s:slug,p:$('hp').value});
+    b.disabled=false;
+    if(error){er.textContent=sbError(error);er.hidden=false;return}
+    viewCard(data);
+  });
 }
 
-$('f').addEventListener('submit',async e=>{
-  e.preventDefault();
-  const er=$('err');er.hidden=true;
-  const {data,error}=await SB.rpc('get_card',{s:slug,p:$('hp').value});
-  if(error){er.textContent=sbError(error);er.hidden=false;return}
-  render(data);
-});
-
-function render(u){
-  $('res').hidden=false;
-  $('ph').textContent=fmtKey(client.key_type,u.key);
-  const q=$('qrc');q.innerHTML='';try{new QRCode(q,{text:`LOYALTY:${client.slug}:${u.key}`,width:150,height:150})}catch(e){}
-  $('ct').textContent=u.stamps+'/10';
-  let h='';
-  for(let i=1;i<=10;i++){
-    const on=i<=u.stamps;
-    h+=`<div class="s ${on?'on':''} ${i===10?'free':''}" aria-label="Stempel ${i}${on?' terisi':''}">${on?leaf:(i===10?'GRATIS':i)}</div>`;
-  }
-  $('g').innerHTML=h;
-  const left=10-u.stamps;
-  $('rw').innerHTML=u.stamps>=10?'<b>Selamat!</b> Kamu dapat 1 gratis. Tunjukkan layar ini ke kasir.'
-    :u.stamps===0?'Belum ada stempel. Setiap pembelian dapat 1 stempel.'
-    :`<b>${left} pembelian lagi</b> untuk dapat 1 gratis.`;
-  const hs=[];if(u.free)hs.push(`Sudah menukar ${u.free} gratis`);
-  $('hs').innerHTML=hs.concat(u.log.map(label)).map(x=>`<span>${x}</span>`).join('');
+// Screen 2 and 3: stamp card. Full card gets the highlighted reward state.
+function viewCard(u){
+  const t=client.stamp_total||u.total||10,full=u.stamps>=t;
+  root.innerHTML=topBar(client,maskKey(client.key_type,u.key))
+    +pageTitle('Kartu stempel',full?`${reward()} siap ditukar.`:`Beli ${t}x, gratis 1.`)
+    +stampCard(u,client,{full:'Kartu penuh'})
+    +`<section class="qr-block${full?' is-full':''}"><div class="qr-img" id="qr"></div>
+        <p>${full?`Tunjukkan QR ini ke kasir untuk tukar ${escH(reward())}`:'Tunjukkan QR ini ke kasir setiap beli'}</p></section>`
+    +historyList('Riwayat stempel',u.log)
+    +`<button class="link" id="again">Cek ${escH(lbl())} lain</button>`;
+  try{new QRCode($('qr'),{text:`LOYALTY:${client.slug}:${u.key}`,width:120,height:120})}catch(e){}
+  $('again').onclick=viewForm;
+  window.scrollTo(0,0);
 }
-init();
+
+(async()=>{
+  if(!window.SB_READY)return viewFatal('Backend belum diatur. Isi config.js.');
+  if(!slug)return viewFatal('Link tidak lengkap. Scan QR dari kedai.');
+  const {data,error}=await SB.rpc('get_client',{s:slug});
+  if(error)return viewFatal(sbError(error));
+  const mm=envMismatch(data);if(mm)return viewFatal(mm);
+  client=data;applyBrand(client,'Kartu stempel');
+  viewForm();
+  const i=$('hp');if(i)i.focus({preventScroll:true});
+})();
 </script>
-
 </body>
 </html>

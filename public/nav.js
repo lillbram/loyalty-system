@@ -15,14 +15,14 @@
   const here = (location.pathname.split('/').pop() || 'kasir').replace(/\.html$/, '');
 
   const css = `
-  body{padding-bottom:calc(88px + env(safe-area-inset-bottom,0px))}
-  .tabbar{position:fixed;left:0;right:0;bottom:0;z-index:10;background:#fff;border-top:1px solid var(--line);
+  body{padding-bottom:calc(72px + env(safe-area-inset-bottom,0px))}
+  .wrap{padding-bottom:32px}
+  .tabbar{position:fixed;left:0;right:0;bottom:0;z-index:10;background:#fff;border-top:1px solid #EBEBEB;
     display:flex;justify-content:center;padding-bottom:env(safe-area-inset-bottom,0px)}
-  .tabbar nav{display:flex;width:100%;max-width:460px}
-  .tabbar a{position:relative;flex:1;display:grid;justify-items:center;gap:2px;padding:12px 0 10px;color:var(--muted);text-decoration:none;font-size:12px;font-weight:500}
-  .tabbar a:hover{color:var(--fg)}
-  .tabbar a[aria-current=page]{color:var(--fg)}
-  .tabbar a[aria-current=page]::before{content:"";position:absolute;top:-1px;left:25%;right:25%;height:2px;background:var(--accent,#111)}
+  .tabbar nav{display:flex;width:100%;max-width:430px}
+  .tabbar a{flex:1;display:grid;justify-items:center;align-content:center;gap:4px;height:72px;color:#999;text-decoration:none;font-size:11px;font-weight:400}
+  .tabbar a:hover{color:#0a0a0a}
+  .tabbar a[aria-current=page]{color:#0a0a0a;font-weight:600}
   .tabbar svg{width:22px;height:22px;fill:none;stroke:currentColor;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
   @media print{.tabbar{display:none}}`;
   const st = document.createElement('style');

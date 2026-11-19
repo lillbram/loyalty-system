@@ -5,60 +5,28 @@
 <meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
 <title>Kasir</title>
 <meta name="claude:viewport-fit-sides" content="cover">
-<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Geist:wght@400;500;600&family=Geist+Mono:wght@400;500&family=Newsreader:opsz,wght@6..72,400;500&display=swap">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap">
 <link rel="stylesheet" href="admin.css">
 <link rel="stylesheet" href="app.css">
 </head>
 <body>
-
-<div class="wrap">
-  <div id="app" hidden>
-  <div class="brand">
-    <img id="logo" alt="" hidden>
-    <div>
-      <h1 class="brand-name">Kasir</h1>
-      <p class="sub">Beri 1 stempel setiap pembelian. Gratis di stempel ke-10.</p>
-    </div>
-  </div>
-  <section class="card">
-    <label class="btn big" for="qr">Scan QR pelanggan</label>
-    <input id="qr" type="file" accept="image/*" capture="environment">
-    <div class="or" id="orlbl">atau ketik ID</div>
-    <form class="row" id="f">
-      <input id="hp" autocomplete="off" autocapitalize="off" spellcheck="false">
-      <button type="submit" class="ghost">Cari</button>
-    </form>
-    <p class="msg" id="msg" hidden></p>
-  </section>
-
-  <section class="card" id="cust" hidden>
-    <div class="head"><span class="phone" id="ph"></span><span class="count" id="ct"></span></div>
-    <div class="grid" id="g"></div>
-    <div class="status" id="st"></div>
-    <button class="big" id="add">+ Beri 1 stempel</button>
-    <button class="big gold" id="redeem" hidden>Tukar 1 gratis</button>
-    <button class="ghost" id="undo" hidden>Batalkan stempel terakhir</button>
-  </section>
-
-  <section class="card">
-    <span class="lbl">Aktivitas hari ini</span>
-    <div class="log" id="log"></div>
-  </section>
-  </div>
-</div>
+<main class="wrap" id="root" hidden></main>
+<div class="scanner" id="scanner" hidden role="dialog" aria-modal="true" aria-label="Scan QR pelanggan"></div>
 
 <script src="https://cdn.jsdelivr.net/npm/jsqr@1.4.0/dist/jsQR.js"></script>
 <script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.45.4/dist/umd/supabase.js"></script>
 <script src="config.js"></script>
+<script src="ui.js"></script>
 <script src="nav.js"></script>
 <script>
-const leaf='<svg viewBox="0 0 256 256" aria-hidden="true"><polyline points="216 72 104 184 48 128"/></svg>';
-const tm=a=>new Date(a).toLocaleTimeString('id-ID',{hour:'2-digit',minute:'2-digit'});
-const act=l=>l.action==='stamp'?'Stempel ke-'+l.stamp_no:l.action==='undo'?'Batal stempel ke-'+l.stamp_no:'Tukar gratis';
 const $=id=>document.getElementById(id);
-let client=null,cur=null,card=null,popIdx=0,busy=false,logRows=[];
-const fk=k=>fmtKey(client.key_type,k);
-function say(txt,ok){const m=$('msg');m.textContent=txt;m.className='msg '+(ok?'ok':'err');m.hidden=!txt}
+const root=$('root'),sc=$('scanner');
+let client=null,cur=null,card=null,popIdx=0,busy=false,logRows=[],note=null;
+const lbl=()=>client.key_label.toLowerCase();
+const reward=()=>client.reward_name||'1 gratis';
+const act=l=>l.action==='stamp'?'Stempel ke-'+l.stamp_no:l.action==='undo'?'Batal stempel ke-'+l.stamp_no:'Tukar gratis';
+
+function say(txt,ok){const m=$('msg');if(!m)return;m.textContent=txt||'';m.className='msg '+(ok?'ok':'err');m.hidden=!txt}
 
 async function call(fn,args){
   if(busy)return null;busy=true;
@@ -67,72 +35,166 @@ async function call(fn,args){
     return data}
   finally{busy=false}
 }
+
+/* ---------- screen 1: find a customer ---------- */
+function viewSearch(){
+  cur=null;card=null;
+  const k=KEYS[client.key_type]||KEYS.custom;
+  root.innerHTML=topBar(client,'Kasir')
+    +pageTitle('Cari pelanggan',`Scan QR pelanggan atau ketik ${lbl()}.`)
+    +`<section class="scan-card">
+        <button class="full big" id="scan" type="button">${ic('scan')}Scan QR pelanggan</button>
+        <p class="mid">atau ketik ${escH(lbl())}</p>
+        <form id="f" novalidate><input id="hp" class="sm" type="${k.type}" inputmode="${k.mode}" placeholder="${escH('Ketik '+lbl()+'…')}"
+          aria-label="${escH(client.key_label)}" autocomplete="off" autocapitalize="off" spellcheck="false" enterkeyhint="search"></form>
+        <p class="msg" id="msg" hidden></p>
+      </section>
+      <section class="hist" id="today"></section>`;
+  $('scan').onclick=openScanner;
+  $('f').addEventListener('submit',e=>{e.preventDefault();open($('hp').value,'type')});
+  renderToday();
+  if(note){say(note.t,note.ok);note=null}
+}
+function renderToday(){
+  const el=$('today');if(!el)return;
+  const s=logRows.filter(l=>l.action==='stamp').length-logRows.filter(l=>l.action==='undo').length,
+        r=logRows.filter(l=>l.action==='redeem').length;
+  el.innerHTML=`<h2>Hari ini · ${Math.max(s,0)} stempel · ${r} tukar</h2>`+(logRows.length
+    ?logRows.slice(0,8).map(l=>`<div class="hr"><span class="${l.action==='redeem'?'gifted':''}">${l.action==='redeem'?ic('gift'):'<i class="dot"></i>'}${escH(maskKey(client.key_type,l.key,true)+' · '+act(l))}</span><span>${fmtTime(l.at)}</span></div>`).join('')
+    :'<p class="empty">Belum ada aktivitas hari ini.</p>');
+}
+async function loadLog(){const l=await call('today_log');if(l){logRows=l;renderToday()}}
+
 async function open(raw,src){
   const c=await call('kasir_open',{p:raw});if(!c)return;
   const isNew=c.stamps===0&&c.free===0&&!c.log.length;
-  say(isNew?'Pelanggan baru ditambahkan.':src==='qr'?'QR terbaca.':'',true);
-  cur=c.key;card=c;$('hp').value=fk(c.key);render();
+  note=isNew?{t:'Pelanggan baru ditambahkan.',ok:true}:src==='qr'?{t:'QR terbaca.',ok:true}:null;
+  cur=c.key;card=c;viewCust();
 }
-async function loadLog(){const l=await call('today_log');if(l){logRows=l;renderLog()}}
-$('f').addEventListener('submit',e=>{e.preventDefault();open($('hp').value)});
 
+/* ---------- screen 2 and 3: give a stamp, or redeem at full ---------- */
+function viewCust(){
+  const t=client.stamp_total||card.total||10,full=card.stamps>=t;
+  const sub=full?'Kartu penuh. Tukar dulu sebelum beri stempel baru.'
+    :[card.since?'Pelanggan sejak '+sinceMonth(card.since):'',card.free?card.free+'x tukar gratis':''].filter(Boolean).join(' · ');
+  root.innerHTML=topBar(client,'Kasir')
+    +pageTitle(maskKey(client.key_type,cur),sub)
+    +stampCard(card,client,{full:'Hadiah siap',pop:popIdx})
+    +(full?`<button class="full big" id="redeem">${ic('gift')}Tukar ${escH(reward())}</button>`
+           :`<button class="full big" id="add">${ic('plus')}Beri 1 stempel</button>`)
+    +(card.can_undo?'<button class="ghost full sm" id="undo">Batalkan stempel terakhir</button>':'')
+    +'<p class="msg" id="msg" hidden></p>'
+    +historyList('Riwayat pelanggan ini',card.log)
+    +'<button class="link" id="other">Cari pelanggan lain</button>';
+  popIdx=0;
+  const b=id=>$(id)&&($(id).onclick=()=>({add:()=>run('add_stamp','Stempel ditambahkan.',true),undo:()=>run('undo_last','Stempel terakhir dibatalkan.'),
+    redeem:()=>run('redeem_free','Gratis ditukar. Kartu mulai dari 0.')}[id]()));
+  b('add');b('undo');b('redeem');
+  $('other').onclick=()=>{note=null;viewSearch()};
+  if(note){say(note.t,note.ok);note=null}
+  window.scrollTo(0,0);
+}
+async function run(fn,okMsg,pop){
+  const c=await call(fn,{p:cur});if(!c)return;
+  card=c;popIdx=pop?c.stamps:0;note={t:okMsg,ok:true};viewCust();loadLog();
+}
+
+/* ---------- live camera scan (jsQR on video frames) ---------- */
 // QR format: LOYALTY:<slug>:<id>
 function parseScan(text){
   const m=String(text).match(/^LOYALTY:([^:]+):(.+)$/i);
-  if(!m)return {err:'QR bukan kartu loyalty. Coba lagi atau ketik ID.'};
+  if(!m)return {err:'QR bukan kartu loyalty.'};
   if(m[1].toLowerCase()!==client.slug)return {err:'QR ini dari program lain.'};
   return {key:m[2]};
 }
-$('qr').addEventListener('change',e=>{
+let stream=null,timer=0,scanning=false,torchOn=false;
+const cv=document.createElement('canvas'),cx=cv.getContext('2d',{willReadFrequently:true});
+function sstat(t,bad){const e=$('sst');if(e){e.textContent=t;e.className='scan-status'+(bad?' bad':'')}}
+
+function closeScanner(){
+  scanning=false;clearTimeout(timer);torchOn=false;
+  if(stream){stream.getTracks().forEach(t=>t.stop());stream=null}
+  sc.hidden=true;sc.innerHTML='';document.body.style.overflow='';
+  document.removeEventListener('keydown',escKey);
+}
+const escKey=e=>{if(e.key==='Escape')closeScanner()};
+
+function showPhotoFallback(){
+  const p=$('sPhoto');if(p)p.hidden=false;
+}
+async function openScanner(){
+  sc.innerHTML=`<div class="in">
+    <div class="bar"><button id="sClose" type="button">${ic('x')}Tutup</button><button id="torch" type="button" hidden>${ic('torch')}Senter</button></div>
+    ${pageTitle('Scan QR pelanggan','Arahkan kamera ke QR di HP pelanggan.')}
+    <div class="view"><video id="vid" playsinline muted></video><div class="frame"></div></div>
+    <p class="scan-status" id="sst" role="status">Mencari QR…</p>
+    <button class="alt full" id="sType" type="button">${ic('kbd')}Ketik ${escH(lbl())} saja</button>
+    <label class="alt" id="sPhoto" for="qrFile" hidden>${ic('scan')}Ambil foto QR</label>
+    <input id="qrFile" type="file" accept="image/*" capture="environment">
+  </div>`;
+  sc.hidden=false;document.body.style.overflow='hidden';
+  document.addEventListener('keydown',escKey);
+  $('sClose').onclick=closeScanner;
+  $('sType').onclick=()=>{closeScanner();const i=$('hp');if(i)i.focus()};
+  $('qrFile').addEventListener('change',onPhoto);
+
+  if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia){
+    sstat('Kamera tidak tersedia di browser ini. Pakai foto QR atau ketik '+lbl()+'.',true);return showPhotoFallback();
+  }
+  try{
+    stream=await navigator.mediaDevices.getUserMedia({video:{facingMode:{ideal:'environment'}},audio:false});
+  }catch(e){
+    sstat('Kamera tidak bisa dibuka. Izinkan kamera untuk situs ini, atau pakai foto QR.',true);return showPhotoFallback();
+  }
+  if(sc.hidden){stream.getTracks().forEach(t=>t.stop());stream=null;return}   // closed while waiting for permission
+  const v=$('vid');v.srcObject=stream;try{await v.play()}catch(e){}
+  const tr=stream.getVideoTracks()[0],caps=tr.getCapabilities?tr.getCapabilities():{};
+  if(caps.torch){
+    const tb=$('torch');tb.hidden=false;
+    tb.onclick=async()=>{torchOn=!torchOn;try{await tr.applyConstraints({advanced:[{torch:torchOn}]})}catch(e){torchOn=!torchOn}};
+  }
+  scanning=true;tick();
+}
+function tick(){
+  if(!scanning)return;
+  const v=$('vid');
+  if(v&&v.readyState>=2&&v.videoWidth&&window.jsQR){
+    const k=Math.min(1,640/Math.max(v.videoWidth,v.videoHeight));
+    cv.width=Math.round(v.videoWidth*k);cv.height=Math.round(v.videoHeight*k);
+    cx.drawImage(v,0,0,cv.width,cv.height);
+    const d=cx.getImageData(0,0,cv.width,cv.height),r=jsQR(d.data,d.width,d.height,{inversionAttempts:'dontInvert'});
+    if(r&&r.data){
+      const p=parseScan(r.data);
+      if(p.err)sstat(p.err,true);
+      else{closeScanner();open(p.key,'qr');return}
+    }else sstat('Mencari QR…');
+  }
+  timer=setTimeout(tick,120);
+}
+// Photo fallback when the live camera is not available.
+function onPhoto(e){
   const f=e.target.files[0];if(!f)return;
   const img=new Image();
   img.onload=()=>{
     const c=document.createElement('canvas'),k=Math.min(1,1200/Math.max(img.width,img.height));
     c.width=img.width*k;c.height=img.height*k;
     const x=c.getContext('2d');x.drawImage(img,0,0,c.width,c.height);
-    const d=x.getImageData(0,0,c.width,c.height);
-    const r=window.jsQR?jsQR(d.data,c.width,c.height):null;
+    const d=x.getImageData(0,0,c.width,c.height),r=window.jsQR?jsQR(d.data,c.width,c.height):null;
     URL.revokeObjectURL(img.src);e.target.value='';
-    if(!r){say('QR tidak terbaca. Foto ulang lebih dekat dan terang, atau ketik ID.');return}
+    if(!r)return sstat('QR tidak terbaca. Foto ulang lebih dekat dan terang.',true);
     const p=parseScan(r.data);
-    if(p.err){say(p.err);return}
-    open(p.key,'qr');
+    if(p.err)return sstat(p.err,true);
+    closeScanner();open(p.key,'qr');
   };
   img.src=URL.createObjectURL(f);
-});
-
-function render(){
-  const u=card;
-  $('cust').hidden=false;$('ph').textContent=fk(cur);$('ct').textContent=u.stamps+'/10';
-  let h='';for(let i=1;i<=10;i++){const on=i<=u.stamps;h+=`<div class="s ${on?'on':''} ${i===10?'free':''} ${i===popIdx?'pop':''}">${on?leaf:(i===10?'GRATIS':i)}</div>`}
-  $('g').innerHTML=h;popIdx=0;
-  const full=u.stamps>=10;
-  $('st').innerHTML=full?'<b>Kartu penuh.</b> Berikan 1 gratis, lalu tekan tukar.'
-    :`${10-u.stamps} pembelian lagi untuk gratis${u.free?` · sudah tukar ${u.free}x`:''}.`;
-  $('add').hidden=full;$('redeem').hidden=!full;$('undo').hidden=!u.can_undo;
 }
-function renderLog(){
-  $('log').innerHTML=logRows.length?logRows.slice(0,8).map(l=>`<div><span>${fk(l.key)} · ${act(l)}</span><span>${tm(l.at)}</span></div>`).join(''):'<p class="empty">Belum ada aktivitas hari ini.</p>';
-}
-async function run(fn,okMsg,pop){
-  const c=await call(fn,{p:cur});if(!c)return;
-  card=c;popIdx=pop?c.stamps:0;say(okMsg,true);render();
-  loadLog();
-}
-$('add').onclick=()=>run('add_stamp','Stempel ditambahkan.',true);
-$('undo').onclick=()=>run('undo_last','Stempel terakhir dibatalkan.');
-$('redeem').onclick=()=>run('redeem_free','Gratis ditukar. Kartu mulai dari 0.');
 
 (async()=>{
   if(!await guard())return;
   client=await loadClient();if(!client)return;
   applyBrand(client,'Kasir');
-  const k=KEYS[client.key_type]||KEYS.custom,i=$('hp');
-  i.type=k.type;i.inputMode=k.mode;i.placeholder=k.ph;i.setAttribute('aria-label',client.key_label);
-  $('orlbl').textContent='atau ketik '+client.key_label;
-  $('app').hidden=false;loadLog();
+  root.hidden=false;viewSearch();loadLog();
 })();
 </script>
-
 </body>
 </html>

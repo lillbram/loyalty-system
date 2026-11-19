@@ -16,6 +16,7 @@ Platform loyalty stempel: beli 10x, gratis 1. Satu platform melayani banyak klie
 - `kasir.html` (Beranda) — kasir: scan QR (jsQR) atau ketik ID, beri stempel, batalkan, tukar gratis di 10/10, log hari ini.
 - `log.html` — kasir: riwayat per ID (`key_log`), atau 50 terbaru semua pelanggan.
 - `profile.html` — kasir: akun, logout, cetak QR poster yang mengarah ke `index.html?c=<slug>`.
+- `ui.js` — render halaman pelanggan/kasir dari data (JS biasa): kartu stempel, header, riwayat, ikon SVG, format waktu, resize logo stempel. Dipakai index, kasir, log, profile.
 - `nav.js` — menu bawah (Beranda/Log/Profil), `guard()` sesi, `loadClient()` (`my_client`), `bye()`. Dipakai 3 halaman kasir.
 - `config.js` — kunci Supabase, `KEYS` (jenis ID), `fmtKey`, `applyBrand` (terapkan warna/logo), `sbError`.
 - `supabase/schema.sql` — tabel + fungsi RPC. Aman dijalankan ulang. `supabase/seed.sql` — 2 pelanggan tes di klien `matcha`.
@@ -43,6 +44,9 @@ Backend Supabase. Tabel dikunci RLS tanpa policy; semua akses lewat fungsi `SECU
 QR bertoken (QR sekarang `LOYALTY:<slug>:<id>`, bisa dipalsukan), scan kamera live di kasir, kode redeem sekali pakai, login pelanggan (OTP), PWA/offline, deploy ke domain publik.
 
 ## Gaya UI
+Halaman pelanggan dan kasir (`index`, `login`, `kasir`, `log`, `profile`) mengikuti desain Figma (file `7z3W6MRjCfCbBVc5YEsQmh`): font Inter, kanvas 390px, kartu stempel abu hangat `#f7f7f5` radius 20, stempel bulat, tombol radius 14, tab bar 72px. Ikon SVG, tanpa emoji. Warna stempel/tombol/hadiah = aksen klien (`--accent`). Gaya di `app.css`.
+Halaman admin tetap gaya lama di bawah ini.
+
 Bahasa Indonesia. Semua halaman (admin, kasir, pelanggan, login) satu gaya minimalis: kanvas putih, teks charcoal, serif Newsreader untuk judul, Geist untuk teks, Geist Mono untuk angka/ID, border 1px `#EAEAEA`, komponen datar tanpa bayangan, mobile-first, hanya mode terang. Gaya dasar di `admin.css`, tambahan halaman klien di `app.css`.
 Satu-satunya warna dari klien adalah aksen (`--accent`, dipilih di admin > Warna, diterapkan `applyBrand()` di `config.js`): tombol utama, stempel terisi, garis tab aktif, fokus input. Tanpa klien/di halaman admin, aksen default hitam `#111`.
 
