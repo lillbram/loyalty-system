@@ -14,21 +14,24 @@
     minus: '<path d="M5 12h14"/>',
     chev: '<path d="M9 6l6 6-6 6"/>',
     back: '<path d="M15 6l-6 6 6 6"/>',
+    upload: '<path d="M12 16V4M7 9l5-5 5 5M5 20h14"/>',
+    matcha: '<path d="M4 11h16a8 8 0 0 1-16 0z"/><path d="M9 21h6"/><path d="M12 8c2.5 0 3.5-1.4 3.5-3.5C13 4.5 12 6 12 8z"/>',
+    kopi: '<path d="M5 9h11v5a5 5 0 0 1-5 5h-1a5 5 0 0 1-5-5zM16 10h1.5a2.5 2.5 0 0 1 0 5H16"/><path d="M8 3v2M12 3v2"/>',
+    boba: '<path d="M6 8h12l-1.2 12a1 1 0 0 1-1 .9H8.2a1 1 0 0 1-1-.9z"/><path d="M12 8l2-5"/><path d="M9.5 17h.01M12 18h.01M14.5 17h.01M11 14.5h.01M13.5 14.5h.01"/>',
+    es: '<path d="M7 7h10l-1 13a1 1 0 0 1-1 .9H9a1 1 0 0 1-1-.9z"/><path d="M12 7V3h3"/><path d="M9.5 12h5"/>',
+    kue: '<path d="M4 10l16-4v10a1 1 0 0 1-1 1H5a1 1 0 0 1-1-1z"/><path d="M4 13.5h16"/><path d="M12 8v1.5"/>',
+    donat: '<circle cx="12" cy="12" r="8.5"/><circle cx="12" cy="12" r="2.8"/><path d="M7.5 8.5l1 1M15 7.5l.8 1.2M16.5 14l1 .8M8 15.5l1-.6"/>',
+    cookie: '<circle cx="12" cy="12" r="8.5"/><path d="M9 9.5h.01M14.5 8.5h.01M15 14h.01M9.5 15h.01M12 12h.01"/>',
     star: '<path d="M12 3.5l2.6 5.4 5.9.8-4.3 4.1 1 5.9L12 17l-5.2 2.7 1-5.9L3.5 9.7l5.9-.8z"/>',
     heart: '<path d="M12 20s-7.5-4.6-7.5-10A4.3 4.3 0 0 1 12 7.4 4.3 4.3 0 0 1 19.5 10c0 5.4-7.5 10-7.5 10z"/>',
-    cup: '<path d="M5 9h11v5a5 5 0 0 1-5 5h-1a5 5 0 0 1-5-5zM16 10h1.5a2.5 2.5 0 0 1 0 5H16"/><path d="M8 3v2M12 3v2"/>',
     leaf: '<path d="M5 19C5 10 10 5 19 5c0 9-5 14-14 14z"/><path d="M5 19l8-8"/>',
-    crown: '<path d="M4 8l4 4 4-6 4 6 4-4-1.5 10h-13z"/>',
-    flame: '<path d="M12 21a6 6 0 0 0 6-6c0-3-2-4.5-3-7-1 1.5-2 2-3 2 0-3-1-5-3-6 0 4-3 6-3 10a6 6 0 0 0 6 6z"/>',
-    smile: '<circle cx="12" cy="12" r="8.5"/><path d="M8.5 14a4 4 0 0 0 7 0M9 9.5h.01M15 9.5h.01"/>',
-    bolt: '<path d="M13 3L5 13h6l-1 8 8-10h-6z"/>',
   };
   window.ic = (n, cls) =>
     `<svg class="ic${cls ? ' ' + cls : ''}" viewBox="0 0 24 24" aria-hidden="true">${P[n]}</svg>`;
 
   // Built-in stamp icons the cashier can choose from (Profil > Ikon stempel). 'logo' = uploaded image.
-  window.STAMP_ICONS = [['check', 'Centang'], ['star', 'Bintang'], ['heart', 'Hati'], ['cup', 'Cangkir'], ['leaf', 'Daun'],
-    ['crown', 'Mahkota'], ['flame', 'Api'], ['smile', 'Senyum'], ['bolt', 'Petir']];
+  window.STAMP_ICONS = [['matcha', 'Matcha'], ['kopi', 'Kopi'], ['boba', 'Boba'], ['es', 'Es'], ['kue', 'Kue'],
+    ['donat', 'Donat'], ['cookie', 'Cookie'], ['star', 'Bintang'], ['heart', 'Hati'], ['leaf', 'Daun']];
   // What a filled stamp shows for this client.
   window.stampMark = (c) =>
     c.stamp_icon === 'logo' && c.stamp_logo
@@ -119,9 +122,9 @@
     new Promise((ok, no) => {
       const img = new Image();
       img.onload = () => {
-        const s = Math.min(img.width, img.height), cv = document.createElement('canvas');
+        const iw = img.naturalWidth || 96, ih = img.naturalHeight || 96, s = Math.min(iw, ih), cv = document.createElement('canvas');
         cv.width = cv.height = 96;
-        cv.getContext('2d').drawImage(img, (img.width - s) / 2, (img.height - s) / 2, s, s, 0, 0, 96, 96);
+        cv.getContext('2d').drawImage(img, (iw - s) / 2, (ih - s) / 2, s, s, 0, 0, 96, 96);
         URL.revokeObjectURL(img.src);
         for (const q of [0.85, 0.7, 0.5, 0.3]) {
           const d = cv.toDataURL('image/webp', q);

@@ -169,11 +169,15 @@ label.pick,button.pick{font-family:var(--sans);font-size:14px;font-weight:600;co
 .hist{display:grid}
 .card label{display:grid;gap:6px}
 
-/* stamp icon picker (Profil) */
-.icon-pick{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px;padding:4px 0 14px}
-.ico{aspect-ratio:1;min-height:0;padding:0;border-radius:50%;background:#fff;color:var(--ink);border:1px solid #e0e0e0;display:grid;place-items:center;overflow:hidden;cursor:pointer;font-weight:500}
-.ico .ic{width:26px;height:26px}
-.ico img{width:100%;height:100%;object-fit:cover}
-.ico:hover:not(:disabled){background:var(--soft);opacity:1}
-.ico.sel{background:var(--accent,#111);border-color:var(--accent,#111);color:var(--on,#fff)}
-.ico.up{border-style:dashed;color:var(--mute);cursor:pointer}
+/* stamp icon bottom sheet (Profil) */
+.sheet-back{position:fixed;inset:0;z-index:70;display:flex;align-items:flex-end;justify-content:center;background:rgba(10,10,10,.45)}
+.sheet{width:100%;max-width:430px;max-height:92vh;overflow-y:auto;background:#fff;border-radius:24px 24px 0 0;padding:12px 20px calc(34px + env(safe-area-inset-bottom,0px));display:grid;gap:20px}
+@media (prefers-reduced-motion:no-preference){.sheet{animation:rise .22s ease-out}@keyframes rise{from{transform:translateY(24px);opacity:.6}}}
+.sheet .handle{width:40px;height:4px;border-radius:2px;background:#d9d9d9;justify-self:center}
+.sheet .ttl h2{margin:0;font-size:20px;font-weight:600;letter-spacing:-.01em;color:var(--ink)}
+.pick-grid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px}
+.tile{aspect-ratio:1;min-height:0;padding:0;border-radius:16px;background:#f5f5f5;color:var(--ink);border:2px solid transparent;display:grid;place-items:center;overflow:hidden;cursor:pointer;font-weight:500}
+.tile .ic{width:28px;height:28px}
+.tile img{width:100%;height:100%;object-fit:cover}
+.tile:hover:not(:disabled){background:#ececec;opacity:1}
+.tile.sel{background:color-mix(in srgb,var(--accent,#111) 10%,#fff);border-color:var(--accent,#111);color:var(--accent,#111)}

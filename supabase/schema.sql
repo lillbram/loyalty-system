@@ -87,9 +87,11 @@ do $$ begin
     update clients set stamp_icon = 'logo' where stamp_logo is not null;
   end if;
 end $$;
+-- icon set changed once (cup, crown, flame, smile, bolt were dropped): map them to the default
 alter table clients drop constraint if exists clients_stamp_icon_check;
+update clients set stamp_icon = 'check' where stamp_icon in ('cup','crown','flame','smile','bolt');
 alter table clients add constraint clients_stamp_icon_check
-  check (stamp_icon in ('check','star','heart','cup','leaf','crown','flame','smile','bolt','logo'));
+  check (stamp_icon in ('check','matcha','kopi','boba','es','kue','donat','cookie','star','heart','leaf','logo'));
 alter table clients drop constraint if exists clients_stamp_total_check;
 alter table clients add constraint clients_stamp_total_check check (stamp_total between 3 and 20);
 alter table customers drop constraint if exists customers_stamps_check;
@@ -327,7 +329,7 @@ begin
     if p_logo !~ '^data:image/(png|jpeg|webp|gif);base64,' then raise exception 'bad_logo'; end if;
     if char_length(p_logo) > 60000 then raise exception 'logo_too_big'; end if;
   end if;
-  if p_icon is not null and p_icon not in ('check','star','heart','cup','leaf','crown','flame','smile','bolt','logo') then
+  if p_icon is not null and p_icon not in ('check','matcha','kopi','boba','es','kue','donat','cookie','star','heart','leaf','logo') then
     raise exception 'bad_icon';
   end if;
   update clients set stamp_total = p_total, reward_name = rw,

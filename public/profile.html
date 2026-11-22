@@ -33,7 +33,7 @@ const $=id=>document.getElementById(id);
 const root=$('root');
 let client=null,email='',KEY='',def='';
 // Pending edits of the stamp config. logo: undefined = unchanged, '' = remove, data: URL = new.
-let cfg={total:10,reward:'',logo:undefined,icon:undefined},pickOpen=false;
+let cfg={total:10,reward:''};
 
 function draw(){
   const v=$('url').value.trim()||def;
@@ -44,16 +44,7 @@ function draw(){
 }
 
 function render(){
-  const logo=cfg.logo===undefined?client.stamp_logo:cfg.logo;
-  const icon=cfg.icon===undefined?(client.stamp_icon||'check'):cfg.icon;
-  const mark=stampMark({stamp_icon:icon,stamp_logo:logo});
-  const picker=pickOpen?`<div class="icon-pick" role="group" aria-label="Pilih ikon stempel">
-      ${STAMP_ICONS.map(([id,nm])=>`<button type="button" class="ico${icon===id?' sel':''}" data-i="${id}" aria-label="${nm}" aria-pressed="${icon===id}">${ic(id)}</button>`).join('')}
-      ${logo?`<button type="button" class="ico${icon==='logo'?' sel':''}" data-i="logo" aria-label="Logo sendiri" aria-pressed="${icon==='logo'}"><img src="${escH(logo)}" alt=""></button>`:''}
-      <label class="ico up" for="lf" aria-label="Unggah logo sendiri">${ic('plus')}</label>
-      <input id="lf" type="file" accept="image/*">
-    </div>
-    <p class="hint" style="padding:0 0 12px">Pilih ikon, atau unggah logo sendiri.${logo?' <button type="button" class="link" id="lx" style="display:inline;padding:0">Hapus logo</button>':''}</p>`:'';
+  const mark=stampMark(client);
   root.innerHTML=topBar(client,'Kasir')
     +pageTitle('Profil','Akun kasir dan QR cetak untuk pelanggan.')
     +`<section class="hist"><h2>Profil</h2>
@@ -85,8 +76,7 @@ function render(){
             <input class="reward" id="rw" maxlength="40" value="${escH(cfg.reward)}" aria-label="Hadiah" autocomplete="off"></div>
           <div class="cfg-row"><div class="lab"><b>Ikon stempel</b><span>Tampil di setiap stempel</span></div>
             <div class="logo-ctl"><div class="logo-prev">${mark}</div>
-              <button class="pick" type="button" id="icoBtn" aria-expanded="${pickOpen}">${pickOpen?'Tutup':'Ganti'}</button></div></div>
-          ${picker}
+              <button class="pick" type="button" id="icoBtn">Ganti</button></div></div>
         </div>
         <button class="full sm" id="save" type="button" disabled>Simpan konfigurasi</button>
         <p class="msg" id="msg" hidden></p>
@@ -102,25 +92,13 @@ function render(){
   draw();
 
   const dirty=()=>{
-    const d=cfg.total!==(client.stamp_total||10)||cfg.reward.trim()!==(client.reward_name||'1 gratis')||cfg.logo!==undefined||cfg.icon!==undefined;
+    const d=cfg.total!==(client.stamp_total||10)||cfg.reward.trim()!==(client.reward_name||'1 gratis');
     $('save').disabled=!d||!cfg.reward.trim();
   };
   $('dec').onclick=()=>{if(cfg.total>3){cfg.total--;$('tot').textContent=cfg.total;dirty()}};
   $('inc').onclick=()=>{if(cfg.total<20){cfg.total++;$('tot').textContent=cfg.total;dirty()}};
   $('rw').addEventListener('input',e=>{cfg.reward=e.target.value;dirty()});
-  $('icoBtn').onclick=()=>{pickOpen=!pickOpen;keepFocus()};
-  if(pickOpen){
-    document.querySelector('.icon-pick').addEventListener('click',e=>{
-      const b=e.target.closest('[data-i]');if(!b)return;
-      cfg.icon=b.dataset.i;keepFocus();
-    });
-    $('lf').addEventListener('change',async e=>{
-      const f=e.target.files[0];if(!f)return;
-      try{cfg.logo=await fileToStampLogo(f);cfg.icon='logo';keepFocus()}catch(err){say(sbError({message:err.message}))}
-      e.target.value='';
-    });
-    if($('lx'))$('lx').onclick=()=>{cfg.logo='';if(icon==='logo')cfg.icon='check';keepFocus()};
-  }
+  $('icoBtn').onclick=openSheet;
   $('save').onclick=save;
   dirty();
 }
@@ -132,14 +110,62 @@ async function save(){
   const lower=cfg.total<(client.stamp_total||10);
   if(lower&&!confirm('Jumlah stempel diturunkan. Kartu pelanggan yang stempelnya sudah melebihi jumlah baru akan menjadi penuh. Lanjutkan?'))return;
   $('save').disabled=true;
-  const {data,error}=await SB.rpc('kasir_save_config',{p_total:cfg.total,p_reward:cfg.reward.trim(),p_logo:cfg.logo===undefined?null:cfg.logo,p_icon:cfg.icon===undefined?null:cfg.icon});
+  const {data,error}=await SB.rpc('kasir_save_config',{p_total:cfg.total,p_reward:cfg.reward.trim(),p_logo:null,p_icon:null});
   if(error){
     $('save').disabled=false;
     // The function is missing until supabase/schema.sql is run again.
     return say(/function|schema cache|permission/i.test(error.message||'')?'Fitur ini belum aktif di database. Jalankan schema.sql terbaru.':sbError(error));
   }
-  client=data;window.CLIENT=data;cfg={total:data.stamp_total,reward:data.reward_name,logo:undefined,icon:undefined};pickOpen=false;
+  client=data;window.CLIENT=data;cfg={total:data.stamp_total,reward:data.reward_name};
   render();say('Konfigurasi disimpan.',true);
+}
+
+/* ---------- bottom sheet: choose the stamp icon (saves right away) ---------- */
+function openSheet(){
+  if($('sheetBack'))return;
+  let sel=client.stamp_icon||'check',logo=client.stamp_logo||null,pend=null;   // pend: null = logo unchanged, '' = remove, data: = new upload
+  const back=document.createElement('div');back.id='sheetBack';back.className='sheet-back';
+  const prev=document.activeElement;
+  const close=()=>{back.remove();document.body.style.overflow='';document.removeEventListener('keydown',onKey);if(prev&&prev.focus)prev.focus()};
+  const onKey=e=>{if(e.key==='Escape')close()};
+  const note=(t)=>{const m=$('shMsg');if(m){m.textContent=t||'';m.hidden=!t}};
+  function draw(){
+    back.innerHTML=`<div class="sheet" role="dialog" aria-modal="true" aria-labelledby="shT">
+      <i class="handle"></i>
+      <div class="ttl"><h2 id="shT">Pilih ikon stempel</h2><p>Pilih dari 10 ikon bawaan, atau impor logo sendiri.</p></div>
+      <div class="pick-grid" role="group" aria-label="Ikon stempel">
+        ${STAMP_ICONS.map(([id,nm])=>`<button type="button" class="tile${sel===id?' sel':''}" data-i="${id}" aria-label="${nm}" aria-pressed="${sel===id}">${ic(id)}</button>`).join('')}
+        ${logo?`<button type="button" class="tile${sel==='logo'?' sel':''}" data-i="logo" aria-label="Logo sendiri" aria-pressed="${sel==='logo'}"><img src="${escH(logo)}" alt=""></button>`:''}
+      </div>
+      <div style="display:grid;gap:12px">
+        <button class="ghost full" id="shImp" type="button" style="min-height:52px;border-radius:12px">${ic('upload')}Impor ikon sendiri (PNG/SVG)</button>
+        <input id="shFile" type="file" accept="image/png,image/svg+xml,image/*">
+        <p class="msg err" id="shMsg" hidden></p>
+        <button class="full" id="shSave" type="button" style="min-height:52px;border-radius:12px">Simpan ikon</button>
+        <div style="display:flex;justify-content:center;gap:20px">
+          ${sel!=='check'?'<button class="link" id="shDef" type="button">Pakai centang standar</button>':''}
+          ${logo?'<button class="link" id="shDel" type="button">Hapus logo sendiri</button>':''}
+        </div>
+      </div></div>`;
+    back.querySelectorAll('[data-i]').forEach(b=>b.onclick=()=>{sel=b.dataset.i;draw()});
+    $('shImp').onclick=()=>$('shFile').click();
+    $('shFile').onchange=async e=>{
+      const f=e.target.files[0];if(!f)return;
+      try{logo=pend=await fileToStampLogo(f);sel='logo';draw()}catch(err){note(sbError({message:err.message}))}
+    };
+    if($('shDef'))$('shDef').onclick=()=>{sel='check';draw()};
+    if($('shDel'))$('shDel').onclick=()=>{logo=null;pend='';if(sel==='logo')sel='check';draw()};
+    $('shSave').onclick=async()=>{
+      $('shSave').disabled=true;note('');
+      const {data,error}=await SB.rpc('kasir_save_config',{p_total:client.stamp_total||10,p_reward:client.reward_name||'1 gratis',p_logo:pend,p_icon:sel});
+      if(error){$('shSave').disabled=false;return note(/function|schema cache|permission|constraint/i.test(error.message||'')?'Ikon belum aktif di database. Jalankan schema.sql terbaru.':sbError(error))}
+      client=data;window.CLIENT=data;close();render();say('Ikon stempel disimpan.',true);
+    };
+  }
+  draw();
+  back.addEventListener('click',e=>{if(e.target===back)close()});
+  document.body.appendChild(back);document.body.style.overflow='hidden';document.addEventListener('keydown',onKey);
+  const first=back.querySelector('.tile.sel')||back.querySelector('.tile');if(first)first.focus();
 }
 
 (async()=>{
@@ -149,7 +175,7 @@ async function save(){
   applyBrand(c,'Profil');
   KEY='customer-url-'+c.slug;
   def=new URL('index.html?c='+encodeURIComponent(c.slug),location.href).href;
-  cfg={total:c.stamp_total||10,reward:c.reward_name||'1 gratis',logo:undefined,icon:undefined};
+  cfg={total:c.stamp_total||10,reward:c.reward_name||'1 gratis'};
   root.hidden=false;render();
 })();
 </script>
